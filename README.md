@@ -57,19 +57,42 @@ pnpm install --filter=Huitian-mini
 ---
 
 
-## 配置
+## 配置说明 (全新 YAML 配置)
 
-所有插件目前都采用「文件内常量」配置（简单直观），通常会改这些：
+为了防止 `git pull` 更新代码时产生冲突，并保护您的隐私数据（如推送群号），所有插件已全面升级为 **YAML 配置文件**，**请勿直接修改 JS 源码文件**！
 
-* **定时推送时间**：`time` / `AUTO_CRON`
-* **定时推送开关**：`isAutoPush`
-* **推送目标**：`groupList` / `POSTLIST`
-* **合并转发模式**：`SEND_MODE_DEFAULT`（forward-onebot / forward-icqq / forward-auto / plain）
-* **sharp**：`SHARP_ENABLE` / `JPEG_QUALITY` / `SHARP_MAX_BYTES` 等
+### 如何修改配置？
 
-> **Cron 小贴士**：若 `node-schedule` 不认 `?`（Quartz 风格），把 `0 30 9 * * ?` 改成 `0 30 9 * * *`（把 `?` 当作 `*`）。
+1. **查看默认配置**：插件的所有默认参数均位于 `config/default.yaml`。**（⚠️ 请勿直接修改此文件，以免后续更新产生代码冲突）**
+2. **生成用户配置**：当您首次启动机器人时，系统会自动在 `config/` 目录下生成一个 `config.yaml` 文件。（您也可以手动新建此文件）
+3. **自定义覆盖**：打开 `config/config.yaml`，您只需要在里面写入您想要修改的参数即可！未写入的参数将自动使用 `default.yaml` 中的默认值。该文件已被加入 `.gitignore`，绝对不会在您更新或上传代码时被覆盖或泄露。
 
----
+### `config.yaml` 配置示例：
+
+```yaml
+# 每日早报配置
+daily:
+  time: '0 30 9 * * *'
+  groupList: ['12345678', '87654321'] # 填入您的推送群号
+  isAutoPush: true
+
+# 米游社Cos配置
+mys_cos:
+  # 推送目标：群号写 'group'，QQ号写 'private'
+  POSTLIST:
+    12345678: 'group'
+    87654321: 'private' 
+  SEND_MODE_DEFAULT: 'forward-icqq' # 合并转发模式，可选 forward-onebot / forward-auto / plain
+```
+
+> **常见配置项说明**：
+> * **定时推送时间**：`time` / `AUTO_CRON`
+> * **定时推送开关**：`isAutoPush`
+> * **推送目标**：`groupList` / `POSTLIST`
+> * **合并转发模式**：`SEND_MODE_DEFAULT`
+> * **Sharp 压缩设置**：`SHARP_ENABLE` / `JPEG_QUALITY` / `SHARP_MAX_BYTES` 等
+
+> **💡 Cron 小贴士**：若 `node-schedule` 不认 `?`（Quartz 风格），请在 `config.yaml` 中把定时表达式从 `0 30 9 * * ?` 改成 `0 30 9 * * *`（把 `?` 替换为 `*` 即可）。
 
 ## 指令示例
 
