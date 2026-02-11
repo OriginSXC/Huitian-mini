@@ -1,24 +1,19 @@
-/**
- * ys-woc-Reborn – WP抓图 → 分批合并转发
- * 核心改动：
- * 1) FORCE_BASE64=true：彻底规避远端证书。
- * 2) PREFER_ICQQ_FORWARD=true：优先用 icqq 合并转发。
- * 3) 动态读取 X-WP-TotalPages，精准随机不越界，避免无限重复第1页。
- */
-
 import plugin from '../../lib/plugins/plugin.js'
 import sharp from 'sharp' 
+import Config from './config/config.js'
 
-// ===================== 可调参数 =====================
-const BATCH_SIZE   = 5          // 每批张数
-const DELAY_MS     = 1600       // 批间隔
-const MAX_TOTAL    = 10         // 本次最多发送几张
-const USE_SHARP    = true       // 使用 sharp 压缩
-const FORCE_BASE64 = true       // 强制所有图片转 base64 发送
-const PREFER_ICQQ_FORWARD = true // 优先 icqq 合并转发
-const FETCH_TIMEOUT_MS = 100000  // 拉图超时
-const JPEG_WIDTH   = 1080       // 压缩宽度
-const JPEG_QUALITY = 70         // 压缩质量
+// ====== 读取 YAML 配置 ======
+const cfg = Config.get('woc')
+
+const BATCH_SIZE          = cfg.BATCH_SIZE || 5          
+const DELAY_MS            = cfg.DELAY_MS || 1600       
+const MAX_TOTAL           = cfg.MAX_TOTAL || 10         
+const USE_SHARP           = cfg.USE_SHARP ?? true       
+const FORCE_BASE64        = cfg.FORCE_BASE64 ?? true       
+const PREFER_ICQQ_FORWARD = cfg.PREFER_ICQQ_FORWARD ?? true 
+const FETCH_TIMEOUT_MS    = cfg.FETCH_TIMEOUT_MS || 100000  
+const JPEG_WIDTH          = cfg.JPEG_WIDTH || 1080       
+const JPEG_QUALITY        = cfg.JPEG_QUALITY || 70         
 // ===================================================
 
 async function getSegment () {
@@ -37,10 +32,8 @@ async function loadSharp () {
   }
 }
 
-// === 新增：轻量级获取网站图片总页数 ===
 async function getWpMaxPage () {
   try {
-    // 只请求 1 条数据，速度极快，专为了骗取 Header 里的 X-WP-TotalPages
     const r = await fetch('https://shaonvzhi.top/wp-json/wp/v2/media?media_type=image&per_page=100', {
       headers: { 'User-Agent': 'Mozilla/5.0' }
     })
@@ -52,7 +45,7 @@ async function getWpMaxPage () {
   } catch (e) {
     Bot?.logger?.warn?.('[woc] 获取总页数失败，使用默认值: ' + e)
   }
-  return 20 // 兜底：如果获取失败，先猜它有20页
+  return 20 
 }
 
 async function fetchWpImagesPage (page) {
@@ -193,28 +186,23 @@ export class example extends plugin {
     try {
       const seg = await getSegment()
 
-      // ===== 1) 读取/补充缓存 =====
       let redisPicArr = await redis.get('ys:woc:pic')
       if (!redisPicArr || redisPicArr === '[]') {
         await e.reply('本小姐补魔中，一会就好！')
 
-        // --- 获取并缓存真实的最大页数 ---
         let maxPage = await redis.get('ys:woc:max_page')
         if (!maxPage) {
           maxPage = await getWpMaxPage()
-          // 存入 Redis，有效期 12 小时 (43200秒)
           await redis.set('ys:woc:max_page', String(maxPage))
           await redis.expire('ys:woc:max_page', 43200) 
         }
 
         let urlsArr = []
-        // 现在是在真实的页数范围内绝对均匀随机了！
         const randomPage = 1 + Math.floor(Math.random() * Number(maxPage))
         
         try {
           urlsArr = await fetchWpImagesPage(randomPage)
         } catch (err) {
-          // 兜底：万一网站刚删了图导致页数变少，报 400 还是退回第 1 页
           if (String(err).includes('400') || String(err).includes('page_number')) {
             Bot?.logger?.warn?.(`[woc] 动态页码 ${randomPage} 超出，降级抓取第 1 页...`)
             urlsArr = await fetchWpImagesPage(1)
@@ -227,7 +215,6 @@ export class example extends plugin {
         redisPicArr = await redis.get('ys:woc:pic')
       }
 
-      // ===== 2) 取一组 URL =====
       const parseArr = JSON.parse(redisPicArr || '[]')
       if (!Array.isArray(parseArr) || parseArr.length === 0) {
         return e.reply('本小姐没有可用的资源，稍后再试~')
@@ -246,7 +233,6 @@ export class example extends plugin {
 
       await e.reply(`本小姐共找来 ${urls.length} 张（将分批发送）`)
 
-      // ===== 3) 获取上下文 & 发送参数 =====
       const ctx  = e.group || e.friend
       if (!ctx) return e.reply('不支持的会话类型')
 
@@ -255,7 +241,6 @@ export class example extends plugin {
       const batchCount = Math.ceil(urls.length / BATCH_SIZE)
       const sharpLib = await loadSharp()
 
-      // ===== 4) 分批发送 =====
       for (let i = 0; i < urls.length; i += BATCH_SIZE) {
         const batch = urls.slice(i, i + BATCH_SIZE)
 

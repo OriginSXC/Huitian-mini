@@ -1,0 +1,64 @@
+# 每日早报配置
+daily:
+  time: '0 30 9 * * ?'
+  groupList: [] # 请在 config.yaml 中填写需要推送的群号，例如: ['123456', '654321']
+  isAutoPush: true
+
+# 摸鱼日历配置
+moyu:
+  time: '0 0 9 * * ?'
+  groupList: [] # 请在 config.yaml 中填写需要推送的群号，例如: ['123456', '654321']
+  isAutoPush: true
+
+# 米游社Cos配置
+mys_cos:
+  SEND_MODE_DEFAULT: 'forward-icqq'
+  ALLOW_CMD_SWITCH_MODE: true
+  BATCH_SIZE: 10
+  DELAY_MS: 1500
+  MAX_TOTAL: 5
+  SIZE_TIPS: true
+  SIZE_MB_TIP: 15
+  HEADER_IN_EACH_BATCH: true
+  AUTO_CRON: '30 8 12 * * *'
+  SHARP_ENABLE: true
+  SHARP_OUTPUT_FORMAT: 'webp'
+  SHARP_QUALITY_START: 82
+  SHARP_QUALITY_MIN: 50
+  SHARP_MAX_WIDTH: 1440
+  SHARP_MAX_HEIGHT: 1920
+  SHARP_CROP_TO_RATIO: true
+  SHARP_TARGET_RATIO: 0.75 # 即 3/4
+  SHARP_MAX_BYTES: 16777216 # 1.6 * 1024 * 1024
+  SHARP_PROGRESSIVE_JPG: true
+  SHARP_POSITION: 'attention'
+  # 请在 config.yaml 中配置推送目标，格式为 群号: 'group' 或 QQ号: 'private'
+  POSTLIST: {} 
+
+# 卧槽图片配置
+woc:
+  BATCH_SIZE: 5
+  DELAY_MS: 1600
+  MAX_TOTAL: 10
+  USE_SHARP: true
+  FORCE_BASE64: true
+  PREFER_ICQQ_FORWARD: true
+  FETCH_TIMEOUT_MS: 100000
+  JPEG_WIDTH: 1080
+  JPEG_QUALITY: 70
+
+# 小姐姐图片配置
+xjj:
+  BATCH_SIZE: 3
+  IMG_COUNT_MIN: 3
+  IMG_COUNT_MAX: 5
+  USE_SHARP: true
+  SHARP_QUALITY: 70
+  SHARP_WIDTH: 1080
+  FETCH_TIMEOUT: 8000
+  DOWNLOAD_TIMEOUT: 15000
+  API_WAVE_CONCURRENCY: 2
+  API_MAX_TRIES_FACTOR: 6
+  API_WAVE_SLEEP_MIN: 200
+  API_WAVE_SLEEP_MAX: 450
+

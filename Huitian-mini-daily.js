@@ -3,16 +3,13 @@ import common from '../../lib/common/common.js'
 import fetch from 'node-fetch'
 import schedule from 'node-schedule'
 import { segment } from 'oicq'
+import Config from './config/config.js'
 
-//从Yuuki-mini-daily.js 修改而来
-// 定时发送时间，采用 Cron 表达式，当前默认为每日 9:30 分推送
-const time = '0 30 9 * * ?'
-
-// 指定定时发送的群号
-const groupList = ['857419755', '540021283', '869284087','365481026','285293445']
-
-// 是否开启定时推送，默认为 false
-const isAutoPush = true
+// ====== 读取 YAML 配置 ======
+const cfg = Config.get('daily')
+const time = cfg.time || '0 30 9 * * ?'
+const groupList = cfg.groupList || []
+const isAutoPush = cfg.isAutoPush ?? true
 
 autoTask()
 
@@ -42,21 +39,18 @@ export class example extends plugin {
  * @param e oicq传递的事件参数e
  */
 async function pushNews(e, isAuto = 0) {
-  // e.msg 用户的命令消息
   if (e.msg) {
     logger.info('[用户命令]', e.msg)
   }
 
-  let url, imgUrl, res, time
+  let url, imgUrl, res, timeStr
 
-  // 摸鱼人日历接口地址
   try {
     url = await fetch('https://60s.viki.moe/v2/60s').catch(err => logger.error(err))
     imgUrl = await url.json()
     res = await imgUrl.data.image
-    time = await imgUrl.data.date
+    timeStr = await imgUrl.data.date
 
-    // 判断接口是否请求成功
     if (!res) {
       logger.error('[每日新闻] 接口请求失败')
       return
@@ -68,14 +62,13 @@ async function pushNews(e, isAuto = 0) {
     return
   }
 
-  // 回复消息
   if (isAuto) {
     e.sendMsg(segment.image(res))
   } else {
-    if (isToday(time)) {
+    if (isToday(timeStr)) {
       e.reply(segment.image(res))
     } else {
-      e.reply(`今天（${time}）的早报尚未更新。`)
+      e.reply(`今天（${timeStr}）的早报尚未更新。`)
     }
   }
 }
@@ -96,10 +89,6 @@ function autoTask() {
   }
 }
 
-/**
- * 判断日期是否为今天
- * @param dateString 接口返回的日期
- */
 const isToday = dateString => {
   const today = new Date()
   const date = new Date(dateString)
