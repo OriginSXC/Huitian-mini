@@ -32,8 +32,10 @@ mys_cos:
   SHARP_MAX_BYTES: 16777216 # 1.6 * 1024 * 1024
   SHARP_PROGRESSIVE_JPG: true
   SHARP_POSITION: 'attention'
-  # 请在 config.yaml 中配置推送目标，格式为 群号: 'group' 或 QQ号: 'private'
+  # 请在 config.yaml 中配置推送目标，格式为 群号: 'group' 或 QQ号: 'private'  
   POSTLIST: {} 
+  # 例如：123456578: 'group'
+  # 例如：87654321: 'private'
 
 # 卧槽图片配置
 woc:
