@@ -35,6 +35,7 @@ const USER_AGENT_LIST = [
 const API_CLASS    = 'https://www.onexiaolaji.cn/RandomPicture/api/?key=qq249663924&type=class'
 const API_IMG_BASE = 'https://www.onexiaolaji.cn/RandomPicture/api/?key=qq249663924'
 const API_VIDEO    = 'https://api.kuleu.com/api/MP4_xiaojiejie?type=json'
+//http://api.yujn.cn/api/zzxjj.php?type=json 留一个备用接口
 
 const httpAgent  = new http.Agent({ keepAlive: true, maxSockets: 8, maxFreeSockets: 8 })
 // 忽略 HTTPS 证书校验
