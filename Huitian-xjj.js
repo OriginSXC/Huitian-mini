@@ -2,13 +2,12 @@ import plugin from '../../lib/plugins/plugin.js'
 import fetch from 'node-fetch'
 import http from 'http'
 import https from 'https'
-import sharp from 'sharp' 
 import Config from './config/config.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('xjj')
 
-const BATCH_SIZE           = cfg.BATCH_SIZE || 3             
+const BATCH_SIZE           = cfg.BATCH_SIZE || 5             
 const IMG_COUNT_MIN        = cfg.IMG_COUNT_MIN || 3
 const IMG_COUNT_MAX        = cfg.IMG_COUNT_MAX || 5
 
@@ -17,12 +16,7 @@ const SHARP_QUALITY        = cfg.SHARP_QUALITY || 70
 const SHARP_WIDTH          = cfg.SHARP_WIDTH || 1080
 
 const FETCH_TIMEOUT        = cfg.FETCH_TIMEOUT || 8000
-const DOWNLOAD_TIMEOUT     = cfg.DOWNLOAD_TIMEOUT || 30000 // 延长下载超时时间到 30 秒
-
-const API_WAVE_CONCURRENCY = cfg.API_WAVE_CONCURRENCY || 2          
-const API_MAX_TRIES_FACTOR = cfg.API_MAX_TRIES_FACTOR || 6          
-const API_WAVE_SLEEP_MIN   = cfg.API_WAVE_SLEEP_MIN || 200
-const API_WAVE_SLEEP_MAX   = cfg.API_WAVE_SLEEP_MAX || 450
+const DOWNLOAD_TIMEOUT     = cfg.DOWNLOAD_TIMEOUT || 30000 
 // ===========================================
 
 const USER_AGENT_LIST = [  
@@ -32,13 +26,7 @@ const USER_AGENT_LIST = [
   'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 ]
 
-const API_CLASS    = 'https://www.onexiaolaji.cn/RandomPicture/api/?key=qq249663924&type=class'
-const API_IMG_BASE = 'https://www.onexiaolaji.cn/RandomPicture/api/?key=qq249663924'
-const API_VIDEO    = 'https://api.kuleu.com/api/MP4_xiaojiejie?type=json'
-//http://api.yujn.cn/api/zzxjj.php?type=json 留一个备用接口
-
 const httpAgent  = new http.Agent({ keepAlive: true, maxSockets: 8, maxFreeSockets: 8 })
-// 忽略 HTTPS 证书校验
 const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 8, maxFreeSockets: 8, rejectUnauthorized: false })
 const pickAgent = (url) => (url.startsWith('https:') ? httpsAgent : httpAgent)
 
@@ -50,7 +38,6 @@ async function getSegment() {
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 const pickUA = () => USER_AGENT_LIST[randInt(0, USER_AGENT_LIST.length - 1)]
-const cacheBuster = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 
 // 获取 JSON 数据
 async function fetchJson(url, timeoutMs = FETCH_TIMEOUT) {
@@ -70,24 +57,21 @@ async function fetchJson(url, timeoutMs = FETCH_TIMEOUT) {
     })
 
     if (!res.ok) {
-      Bot?.logger?.error?.(`[xjj] API HTTP 状态码异常: ${res.status}`)
+      Bot?.logger?.error?.(`[xjj] API HTTP 状态码异常: ${res.status} (${url})`)
       return null
     }
 
     const data = await res.json()
-    if (data && typeof data.msg === 'string') {
-      Bot?.logger?.warn?.(`[xjj] API 提示: ${data.msg}`)
-    }
     return data
   } catch (err) {
-    Bot?.logger?.error?.(`[xjj] fetchJson 请求崩溃 (${url}): ${err.message}`)
+    Bot?.logger?.error?.(`[xjj] fetchJson 请求失败 (${url}): ${err.message}`)
     return null
   } finally {
     clearTimeout(t)
   }
 }
 
-// 获取图片 Buffer (移除了 agent 以防假死，增加了超时捕获)
+// 获取图片 Buffer (移除了旧版特定的 Referer 以适配新图床)
 async function fetchBuffer(url, timeoutMs = DOWNLOAD_TIMEOUT) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
@@ -95,13 +79,12 @@ async function fetchBuffer(url, timeoutMs = DOWNLOAD_TIMEOUT) {
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      agent: undefined, // 核心修复：不用 Keep-Alive，防止下载大图卡死
+      agent: undefined, 
       headers: {
         'User-Agent': pickUA(),
         'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6',
-        'Cache-Control': 'no-cache',
-        'Referer': 'https://www.onexiaolaji.cn/' // 加上 Referer 防一部分盗链
+        'Cache-Control': 'no-cache'
       }
     })
     
@@ -114,7 +97,7 @@ async function fetchBuffer(url, timeoutMs = DOWNLOAD_TIMEOUT) {
     return Buffer.from(ab)
   } catch (err) {
     if (err.name === 'AbortError' || err.message.includes('aborted')) {
-      Bot?.logger?.error?.(`[xjj] 图片下载超时 (超过${timeoutMs/1000}秒): ${url}`)
+      Bot?.logger?.error?.(`[xjj] 图片下载超时: ${url}`)
     } else {
       Bot?.logger?.error?.(`[xjj] fetchBuffer 崩溃 (${url}): ${err.message}`)
     }
@@ -127,6 +110,9 @@ async function fetchBuffer(url, timeoutMs = DOWNLOAD_TIMEOUT) {
 async function urlToBase64(url) {
   if (!url) return null
 
+  // 修复部分 API 返回的双斜杠无协议 URL
+  if (url.startsWith('//')) url = 'https:' + url
+  
   try {
     let buffer = await fetchBuffer(url, DOWNLOAD_TIMEOUT)
     if (!buffer) return null
@@ -148,40 +134,68 @@ async function urlToBase64(url) {
   }
 }
 
-async function collectUniqueImgUrls({ need, typeParam }) {
-  const urls = new Set()
-  let tries = 0
-  const maxTries = Math.max(need * API_MAX_TRIES_FACTOR, 12)
+// ================= API 源配置 =================
 
-  while (urls.size < need && tries < maxTries) {
-    const wave = Math.min(API_WAVE_CONCURRENCY, maxTries - tries)
-
-    const tasks = Array.from({ length: wave }).map(() =>
-      fetchJson(`${API_IMG_BASE}&class=${typeParam}&type=json&_=${cacheBuster()}`)
-    )
-
-    const results = await Promise.all(tasks)
-
-    for (const r of results) {
-      const u = r?.url || r?.img
-      if (typeof u === 'string' && u.startsWith('http')) urls.add(u)
-    }
-
-    tries += wave
-
-    if (urls.size < need) {
-      await sleep(randInt(API_WAVE_SLEEP_MIN, API_WAVE_SLEEP_MAX))
-    }
+const IMAGE_APIS = [
+  // 1. imgapi.cn (单图)
+  async (count) => {
+    const tasks = Array.from({ length: count }).map(() => fetchJson('https://imgapi.cn/api.php?zd=zsy&fl=meizi&gs=json'))
+    const res = await Promise.all(tasks)
+    return { name: '随机妹子', urls: res.map(r => r?.imgurl).filter(Boolean) }
+  },
+  // 2. imgapi.cn (10张连包)
+  async (count) => {
+    const urls = ['https://imgapi.cn/cos.php?return=jsonpro', 'https://imgapi.cn/cos2.php?return=jsonpro']
+    const pickUrl = urls[randInt(0, 1)]
+    const res = await fetchJson(pickUrl)
+    return { name: 'COS集锦', urls: (res?.imgurls || []).slice(0, count) }
+  },
+  // 3. 3650000.xyz (多分类单图)
+  async (count) => {
+    const modes = [
+      { m: 1, n: '微博美女' }, { m: 2, n: 'IG图包' }, { m: 3, n: 'COS图' },
+      { m: 5, n: 'Mtcos' }, { m: 7, n: '美腿' }, { m: 8, n: 'Coser分类' }, { m: 9, n: '兔玩映画' }
+    ]
+    const pick = modes[randInt(0, modes.length - 1)]
+    const tasks = Array.from({ length: count }).map(() => fetchJson(`http://3650000.xyz/api/?type=json&mode=${pick.m}`))
+    const res = await Promise.all(tasks)
+    return { name: pick.n, urls: res.map(r => r?.url).filter(Boolean) }
+  },
+  // 4. v2.xxapi.cn (多分类单图)
+  async (count) => {
+    const endpoints = [
+      { e: 'yscos', n: '原神COS' }, { e: 'heisi', n: '黑丝' }, 
+      { e: 'baisi', n: '白丝' }, { e: 'jk', n: 'JK制服' }
+    ]
+    const pick = endpoints[randInt(0, endpoints.length - 1)]
+    const tasks = Array.from({ length: count }).map(() => fetchJson(`https://v2.xxapi.cn/api/${pick.e}?return=json`))
+    const res = await Promise.all(tasks)
+    return { name: pick.n, urls: res.map(r => r?.data).filter(Boolean) }
   }
+]
 
-  return Array.from(urls).slice(0, need)
-}
+const VIDEO_APIS = [
+  // 1. yujn.cn (带标题)
+  async () => {
+    const res = await fetchJson('https://api.yujn.cn/api/zzxjj.php?type=json')
+    if (res && res.data) return { url: res.data, title: res.title || '' }
+    return null
+  },
+  // 2. kuleu.com (无标题)
+  async () => {
+    const res = await fetchJson('https://api.kuleu.com/api/MP4_xiaojiejie?type=json')
+    if (res && res.mp4_video) return { url: res.mp4_video, title: '' }
+    return null
+  }
+]
+
+// ============================================
 
 export class xjjUltimate extends plugin {
   constructor() {
     super({
-      name: '小姐姐-极速完整版(稳定)',
-      dsc: '分类准确+Base64秒发(限并发补齐+防假死)',
+      name: '小姐姐-极速完整版(聚合重构)',
+      dsc: '多接口聚合+分类准确+Base64秒发',
       event: 'message',
       priority: 5000,
       rule: [
@@ -191,80 +205,39 @@ export class xjjUltimate extends plugin {
     })
   }
 
-  async getClassList() {
-    const cacheKey = 'ys:xjj:classes'
-    const cached = await redis.get(cacheKey)
-    if (cached) {
-      try { return JSON.parse(cached) } catch {}
-    }
-
-    Bot?.logger?.mark?.('[xjj] 正在更新分类缓存...')
-    const data = await fetchJson(API_CLASS)
+  async xjj(e) {
+    const count = randInt(IMG_COUNT_MIN, IMG_COUNT_MAX)
     
-    if (!data || !data.class) {
-       Bot?.logger?.error?.('[xjj] 获取分类接口返回异常')
-       return null
-    }
-
-    const leaves = []
+    // 随机打乱 API 顺序，实现失败自动降级重试
+    const shuffledApis = [...IMAGE_APIS].sort(() => Math.random() - 0.5)
     
-    // 递归解析层级 JSON，顺便继承父级名称
-    const traverse = (node, parentName = '') => {
-      if (typeof node !== 'object' || !node) return
-      
-      for (const [k, v] of Object.entries(node)) {
-        if (['code', 'bing', 'video', '10', 'ad', 'author', 'Latest update time'].includes(k)) continue
-        
-        let currentCategoryName = parentName
-        // 如果包含 "=>"，提取后半部分名字
-        if (k.includes('=>')) {
-          currentCategoryName = k.split('=>')[1]
+    let result = null
+    for (const apiFunc of shuffledApis) {
+      try {
+        const res = await apiFunc(count)
+        // 确保获取到了足够的图片（至少一张）才跳出循环
+        if (res && res.urls && res.urls.length > 0) {
+          result = res
+          break
         }
-
-        if (typeof v === 'string') {
-          // 只保留纯数字作为真实的分类 ID
-          if (/^\d+$/.test(k)) {
-            const fullName = currentCategoryName ? `${currentCategoryName} - ${v}` : v
-            leaves.push({ id: k, name: fullName })
-          }
-        } else if (typeof v === 'object') {
-          traverse(v, currentCategoryName)
-        }
+      } catch (err) {
+        Bot?.logger?.warn?.(`[xjj] 某个图片接口请求失败，正在尝试切换...`)
       }
     }
-    
-    traverse(data.class)
 
-    if (leaves.length > 0) {
-      await redis.set(cacheKey, JSON.stringify(leaves), { EX: 3600 })
+    if (!result || result.urls.length === 0) {
+      return e.reply('这会儿所有图库接口都拥挤或失效了，请稍后再试吧~')
     }
-    return leaves
-  }
 
-  async xjj(e) {
-    const classes = await this.getClassList()
-    if (!classes || classes.length === 0) return e.reply('图片分类加载失败，请看后台控制台报错日志。')
-
-    const pick = classes[randInt(0, classes.length - 1)]
-    
-    // 核心修复：直接传纯数字 ID，不再拼接错误的 p 或 m 后缀
-    const typeParam = pick.id 
-    const count = randInt(IMG_COUNT_MIN, IMG_COUNT_MAX)
-
-    await e.reply(`本小姐正在挑选 ${count} 张 [${pick.name}] 美图...`)
-
-    const uniqueUrls = await collectUniqueImgUrls({ need: count, typeParam })
-    if (uniqueUrls.length < Math.min(count, IMG_COUNT_MIN)) {
-      return e.reply('这会儿图库有点挤，只拿到部分图或获取失败，稍后再试吧~')
-    }
+    await e.reply(`本小姐正在挑选 ${result.urls.length} 张 [${result.name}] 美图...`)
 
     const seg = await getSegment()
     const uin = e.member?.user_id ?? Bot.uin
     const nick = e.member?.nickname ?? Bot.nickname
-    const title = `${nick} ｜ ${pick.name} 精选`
+    const title = `${nick} ｜ ${result.name} 精选`
 
-    for (let i = 0; i < uniqueUrls.length; i += BATCH_SIZE) {
-      const batchUrls = uniqueUrls.slice(i, i + BATCH_SIZE)
+    for (let i = 0; i < result.urls.length; i += BATCH_SIZE) {
+      const batchUrls = result.urls.slice(i, i + BATCH_SIZE)
 
       const settled = await Promise.allSettled(batchUrls.map(u => urlToBase64(u)))
       const validBase64 = settled
@@ -297,7 +270,7 @@ export class xjjUltimate extends plugin {
         }
       }
 
-      if (i + BATCH_SIZE < uniqueUrls.length) {
+      if (i + BATCH_SIZE < result.urls.length) {
         await sleep(1000) 
       }
     }
@@ -307,16 +280,40 @@ export class xjjUltimate extends plugin {
 
   async xjjVideo(e) {
     const seg = await getSegment()
-    try {
-      const res = await fetchJson(API_VIDEO)
-      if (res && res.mp4_video) {
-        await e.reply([seg.video(res.mp4_video)])
-      } else {
-        await e.reply('视频接口暂时没数据~')
+    
+    const shuffledApis = [...VIDEO_APIS].sort(() => Math.random() - 0.5)
+    
+    let result = null
+    for (const apiFunc of shuffledApis) {
+      try {
+        const res = await apiFunc()
+        if (res && res.url) {
+          result = res
+          break
+        }
+      } catch (err) {
+        Bot?.logger?.warn?.(`[xjj] 某个视频接口请求失败，正在尝试切换...`)
       }
-    } catch {
-      await e.reply('视频获取出错了')
     }
+
+    if (!result || !result.url) {
+      return e.reply('视频接口暂时都没数据或挂掉了~')
+    }
+
+    try {
+      // 视频带标题则拼接标题文本
+      const replyMsg = []
+      if (result.title) {
+        replyMsg.push(`������ ${result.title.trim()}\n`)
+      }
+      replyMsg.push(seg.video(result.url))
+      
+      await e.reply(replyMsg)
+    } catch (err) {
+      Bot?.logger?.error?.(`[xjj] 视频发送异常: ${err.message}`)
+      await e.reply('视频获取到了，但发送出错了')
+    }
+    
     return true
   }
 }
