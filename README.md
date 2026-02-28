@@ -6,11 +6,17 @@
 **早报 · 摸鱼日历 · 米游社 COS · WP 抓图 · 随机图/视频**
 
 <p>
-  <a href="./LICENSE"><img alt="license" src="[https://img.shields.io/github/license/OriginSXC/Huitian-mini](https://img.shields.io/github/license/OriginSXC/Huitian-mini)"></a>
-  <img alt="node" src="[https://img.shields.io/badge/node-%3E%3D18-brightgreen](https://img.shields.io/badge/node-%3E%3D18-brightgreen)">
-  <a href="[https://github.com/OriginSXC/Huitian-mini/stargazers](https://github.com/OriginSXC/Huitian-mini/stargazers)"><img alt="stars" src="[https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat](https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat)"></a>
-  <a href="[https://github.com/OriginSXC/Huitian-mini/issues](https://github.com/OriginSXC/Huitian-mini/issues)"><img alt="issues" src="[https://img.shields.io/github/issues/OriginSXC/Huitian-mini](https://img.shields.io/github/issues/OriginSXC/Huitian-mini)"></a>
+
+  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/OriginSXC/Huitian-mini"></a>
+
+  <img alt="node" src="https://img.shields.io/badge/node-%3E%3D18-brightgreen">
+
+  <a href="https://github.com/OriginSXC/Huitian-mini/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat"></a>
+
+  <a href="https://github.com/OriginSXC/Huitian-mini/issues"><img alt="issues" src="https://img.shields.io/github/issues/OriginSXC/Huitian-mini"></a>
+
 </p>
+
 </div>
 
 ## 功能一览
