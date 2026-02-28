@@ -19,11 +19,67 @@ const FETCH_TIMEOUT        = cfg.FETCH_TIMEOUT || 8000
 const DOWNLOAD_TIMEOUT     = cfg.DOWNLOAD_TIMEOUT || 30000 
 // ===========================================
 
+// ================= 混淆与配置区 =================
+
+// 1. 新版 yujn.cn 接口基础 (包含图片和视频)
+const _0xYujnBase = "aHR0cHM6Ly9hcGkueXVqbi5jbi9hcGkv"; // https://api.yujn.cn/api/
+
+// 视频可用分类 (已剔除失效的 tzjsy)
+const VID_YUJN_MAP = {
+  "黑丝": "heisis.php?type=video", "白丝": "baisis.php?type=video", 
+  "漫展": "manzhan.php?type=video", "jk": "jksp.php?type=video", 
+  "甜妹": "tianmei.php?type=video", "萝莉": "luoli.php?type=video", 
+  "清纯": "qingchun.php?type=video", "吊带": "diaodai.php?type=video", 
+  "变装": ["ksbianzhuang.php?type=video", "bianzhuang.php?"], // 支持多接口随机
+  "女高": "nvgao.php?type=video", "双倍快乐": "sbkl.php?type=video", 
+  "怼脸自拍": "duilian.php?type=video", "穿搭": "chuanda.php?type=video", 
+  "完美身材": "wmsc.php?type=video", "慢摇": "manyao.php?type=video", 
+  "cos": "COS.php?type=video", "热舞": "rewu.php?type=video", 
+  "玉足": "yuzu.php?type=video", "美腿": "yuzu.php?type=video", // 玉足美腿合并
+  "女大": "nvda.php?type=video", "古风": "hanfu.php?type=video",
+  
+  // 网红系列
+  "瞳瞳": "tongtong.php?type=video", "鞠婧祎": "jjy.php?type=video", 
+  "潇潇": "xiaoxiao.php?", "杀猪饲料": "shejie.php?type=video", 
+  "章若楠": "zrn.php?type=video", "你的欲梦": "ndym.php?type=video"
+};
+
+const _decodeYujnVid = (key) => {
+  let path = VID_YUJN_MAP[key];
+  if (Array.isArray(path)) path = path[randInt(0, path.length - 1)]; // 随机挑一个
+  return Buffer.from(_0xYujnBase, 'base64').toString() + path;
+};
+
+// 新版 yujn.cn 图片分类
+const IMG_YUJN_MAP = {
+  "jk": "jk.php?", "黑丝": "heisi.php?", "白丝": "baisi.php?", "美腿": "tui.php?"
+};
+const _decodeYujnImg = (key) => Buffer.from(_0xYujnBase, 'base64').toString() + IMG_YUJN_MAP[key];
+
+// 2. 老版 pt.tzjsy 图片接口 (继续保留使用)
+const _0xImgBase = "aHR0cDovL3B0LnR6anN5LmNuLw=="; // http://pt.tzjsy.cn/
+const _0xImgSuf = "L2ltZy5waHA="; // /img.php
+
+const IMG_TZ_MAP = {
+  "美腿": "tui", "网红": "wh", "黑丝": "hs", "白丝": "bs"
+};
+const _decodeImg = (key) => Buffer.from(_0xImgBase, 'base64').toString() + IMG_TZ_MAP[key] + Buffer.from(_0xImgSuf, 'base64').toString();
+
+// 中英文别名映射器
+const ALIAS_MAP = {
+  "hs": "黑丝", "bs": "白丝", "jk": "jk", "cos": "cos",
+  "xjj": "随机小姐姐", "小姐姐": "随机小姐姐"
+};
+
+// 动态生成正则匹配规则 (涵盖所有类名、网红名)
+const categoryKeys = Object.keys(VID_YUJN_MAP).concat(Object.keys(IMG_TZ_MAP)).concat(Object.keys(IMG_YUJN_MAP)).concat(Object.keys(ALIAS_MAP));
+const REGEX_CATE_STR = [...new Set(categoryKeys)].join('|');
+// =============================================
+
+
 const USER_AGENT_LIST = [  
   'Mozilla/5.0 (Linux;u;Android 4.2.2;zh-cn;) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile Safari/10600.6.3 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
-  'Mozilla/5.0 (iPhone;CPU iPhone OS 9_1 like Mac OS X) AppleWebKit/601.1.46 (KHTML, like Gecko) Version/9.0 Mobile/13B143 Safari/601.1 (compatible; Baiduspider-render/2.0; +http://www.baidu.com/search/spider.html)',
-  'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36 Edg/143.0.0.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-  'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+  'Mozilla/5.0 (iPhone;CPU iPhone OS 9_1 like Mac OS X) AppleWebKit/601.1.46 (KHTML, like Gecko) Version/9.0 Mobile/13B143 Safari/601.1 (compatible; Baiduspider-render/2.0; +http://www.baidu.com/search/spider.html)'
 ]
 
 const httpAgent  = new http.Agent({ keepAlive: true, maxSockets: 8, maxFreeSockets: 8 })
@@ -39,194 +95,170 @@ const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 const pickUA = () => USER_AGENT_LIST[randInt(0, USER_AGENT_LIST.length - 1)]
 
-// 获取 JSON 数据
 async function fetchJson(url, timeoutMs = FETCH_TIMEOUT) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
-
   try {
     const res = await fetch(url, {
-      signal: ctrl.signal,
-      agent: pickAgent(url),
-      headers: {
-        'User-Agent': pickUA(),
-        'Accept': 'application/json,text/plain,*/*',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6',
-        'Cache-Control': 'no-cache'
-      }
+      signal: ctrl.signal, agent: pickAgent(url), headers: { 'User-Agent': pickUA() }
     })
-
-    if (!res.ok) {
-      Bot?.logger?.error?.(`[xjj] API HTTP 状态码异常: ${res.status} (${url})`)
-      return null
-    }
-
-    const data = await res.json()
-    return data
-  } catch (err) {
-    Bot?.logger?.error?.(`[xjj] fetchJson 请求失败 (${url}): ${err.message}`)
-    return null
-  } finally {
-    clearTimeout(t)
-  }
+    return res.ok ? await res.json() : null;
+  } catch (err) { return null; } finally { clearTimeout(t); }
 }
 
-// 获取图片 Buffer (移除了旧版特定的 Referer 以适配新图床)
 async function fetchBuffer(url, timeoutMs = DOWNLOAD_TIMEOUT) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
-
   try {
     const res = await fetch(url, {
-      signal: ctrl.signal,
-      agent: undefined, 
-      headers: {
-        'User-Agent': pickUA(),
-        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6',
-        'Cache-Control': 'no-cache'
-      }
+      signal: ctrl.signal, agent: undefined, redirect: 'follow', headers: { 'User-Agent': pickUA() }
     })
-    
-    if (!res.ok) {
-      Bot?.logger?.error?.(`[xjj] 图片 HTTP 错误: ${res.status} (${url})`)
-      return null
-    }
-
-    const ab = await res.arrayBuffer()
-    return Buffer.from(ab)
-  } catch (err) {
-    if (err.name === 'AbortError' || err.message.includes('aborted')) {
-      Bot?.logger?.error?.(`[xjj] 图片下载超时: ${url}`)
-    } else {
-      Bot?.logger?.error?.(`[xjj] fetchBuffer 崩溃 (${url}): ${err.message}`)
-    }
-    return null
-  } finally {
-    clearTimeout(t)
-  }
+    return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+  } catch (err) { return null; } finally { clearTimeout(t); }
 }
 
 async function urlToBase64(url) {
   if (!url) return null
-
-  // 修复部分 API 返回的双斜杠无协议 URL
   if (url.startsWith('//')) url = 'https:' + url
-  
   try {
     let buffer = await fetchBuffer(url, DOWNLOAD_TIMEOUT)
     if (!buffer) return null
-
     if (USE_SHARP) {
       try {
         const sharp = (await import('sharp')).default
-        buffer = await sharp(buffer)
-          .rotate()
-          .resize({ width: SHARP_WIDTH, withoutEnlargement: true })
-          .jpeg({ quality: SHARP_QUALITY })
-          .toBuffer()
+        buffer = await sharp(buffer).rotate().resize({ width: SHARP_WIDTH, withoutEnlargement: true }).jpeg({ quality: SHARP_QUALITY }).toBuffer()
       } catch {}
     }
-
     return `base64://${buffer.toString('base64')}`
-  } catch {
-    return null
-  }
+  } catch { return null; }
 }
 
-// ================= API 源配置 =================
-
-const IMAGE_APIS = [
-  // 1. imgapi.cn (单图)
-  async (count) => {
-    const tasks = Array.from({ length: count }).map(() => fetchJson('https://imgapi.cn/api.php?zd=zsy&fl=meizi&gs=json'))
-    const res = await Promise.all(tasks)
-    return { name: '随机妹子', urls: res.map(r => r?.imgurl).filter(Boolean) }
+// ================= 旧版特定分类 API 映射 =================
+const OLD_IMG_CATE_MAP = {
+  "黑丝": async (count) => {
+    const res = await Promise.all(Array.from({ length: count }).map(() => fetchJson(`https://v2.xxapi.cn/api/heisi?return=json`)));
+    return res.map(r => r?.data).filter(Boolean);
   },
-  // 2. imgapi.cn (10张连包)
-  async (count) => {
-    const urls = ['https://imgapi.cn/cos.php?return=jsonpro', 'https://imgapi.cn/cos2.php?return=jsonpro']
-    const pickUrl = urls[randInt(0, 1)]
-    const res = await fetchJson(pickUrl)
-    return { name: 'COS集锦', urls: (res?.imgurls || []).slice(0, count) }
+  "白丝": async (count) => {
+    const res = await Promise.all(Array.from({ length: count }).map(() => fetchJson(`https://v2.xxapi.cn/api/baisi?return=json`)));
+    return res.map(r => r?.data).filter(Boolean);
   },
-  // 3. 3650000.xyz (多分类单图)
-  async (count) => {
-    const modes = [
-      { m: 1, n: '微博美女' }, { m: 2, n: 'IG图包' }, { m: 3, n: 'COS图' },
-      { m: 5, n: 'Mtcos' }, { m: 7, n: '美腿' }, { m: 8, n: 'Coser分类' }, { m: 9, n: '兔玩映画' }
-    ]
-    const pick = modes[randInt(0, modes.length - 1)]
-    const tasks = Array.from({ length: count }).map(() => fetchJson(`http://3650000.xyz/api/?type=json&mode=${pick.m}`))
-    const res = await Promise.all(tasks)
-    return { name: pick.n, urls: res.map(r => r?.url).filter(Boolean) }
+  "jk": async (count) => {
+    const res = await Promise.all(Array.from({ length: count }).map(() => fetchJson(`https://v2.xxapi.cn/api/jk?return=json`)));
+    return res.map(r => r?.data).filter(Boolean);
   },
-  // 4. v2.xxapi.cn (多分类单图)
-  async (count) => {
-    const endpoints = [
-      { e: 'yscos', n: '原神COS' }, { e: 'heisi', n: '黑丝' }, 
-      { e: 'baisi', n: '白丝' }, { e: 'jk', n: 'JK制服' }
-    ]
-    const pick = endpoints[randInt(0, endpoints.length - 1)]
-    const tasks = Array.from({ length: count }).map(() => fetchJson(`https://v2.xxapi.cn/api/${pick.e}?return=json`))
-    const res = await Promise.all(tasks)
-    return { name: pick.n, urls: res.map(r => r?.data).filter(Boolean) }
+  "美腿": async (count) => {
+    const res = await Promise.all(Array.from({ length: count }).map(() => fetchJson(`http://3650000.xyz/api/?type=json&mode=7`)));
+    return res.map(r => r?.url).filter(Boolean);
   }
-]
+};
 
-const VIDEO_APIS = [
-  // 1. yujn.cn (带标题)
+const OLD_IMAGE_RANDOM_APIS = [
+  async (count) => {
+    const res = await Promise.all(Array.from({ length: count }).map(() => fetchJson('https://imgapi.cn/api.php?zd=zsy&fl=meizi&gs=json')));
+    return { name: '随机妹子', urls: res.map(r => r?.imgurl).filter(Boolean) };
+  },
+  async (count) => {
+    const urls = ['https://imgapi.cn/cos.php?return=jsonpro', 'https://imgapi.cn/cos2.php?return=jsonpro'];
+    const res = await fetchJson(urls[randInt(0, 1)]);
+    return { name: '随机集锦', urls: (res?.imgurls || []).slice(0, count) };
+  }
+];
+
+// 新增无标题的视频合集 (直连地址)
+const YUJN_RANDOM_VIDEOS = [
+  'zzxjj.php?type=video', 'xjj.php?type=video', 'juhexjj.php?type=video', 'ksxjjsp.php?'
+];
+
+const MIXED_VIDEO_RANDOM_APIS = [
+  // 原有的 JSON 解析库
   async () => {
     const res = await fetchJson('https://api.yujn.cn/api/zzxjj.php?type=json')
-    if (res && res.data) return { url: res.data, title: res.title || '' }
-    return null
+    return (res && res.data) ? { url: res.data, title: res.title || '' } : null;
   },
-  // 2. kuleu.com (无标题)
   async () => {
     const res = await fetchJson('https://api.kuleu.com/api/MP4_xiaojiejie?type=json')
-    if (res && res.mp4_video) return { url: res.mp4_video, title: '' }
-    return null
-  }
-]
-
+    return (res && res.mp4_video) ? { url: res.mp4_video, title: '' } : null;
+  },
+  // 新增直连池，每次随机抽取 YUJN 库
+  ...YUJN_RANDOM_VIDEOS.map(path => async () => {
+    return { url: Buffer.from(_0xYujnBase, 'base64').toString() + path, title: "" };
+  })
+];
 // ============================================
 
 export class xjjUltimate extends plugin {
   constructor() {
     super({
-      name: '小姐姐-极速完整版(聚合重构)',
-      dsc: '多接口聚合+分类准确+Base64秒发',
+      name: '小姐姐-极速完整版(日志排错版)',
+      dsc: '多接口聚合+全量中英文别名匹配+缺图排错',
       event: 'message',
       priority: 5000,
       rule: [
-        { reg: /^#?(小姐姐|xjj)$/, fnc: 'xjj' },
-        { reg: /^#?((小姐姐|xjj)视频|xjjpro)$/, fnc: 'xjjVideo' }
+        // 匹配: #hs, #黑丝, #jk, #黑丝图片 等
+        { reg: new RegExp(`^#?(${REGEX_CATE_STR})(图片|图)?$`, 'i'), fnc: 'xjj' },
+        // 匹配: #hspro, #黑丝pro, #jk视频, #鞠婧祎视频 等
+        { reg: new RegExp(`^#?(${REGEX_CATE_STR})(视频|pro)$`, 'i'), fnc: 'xjjVideo' }
       ]
     })
   }
 
+  // 工具方法：提取并转换用户指令
+  parseCommand(msg) {
+    let raw = msg.replace(/^#/, '').replace(/(图片|图|视频|pro)$/i, '').toLowerCase();
+    return ALIAS_MAP[raw] || raw;
+  }
+
   async xjj(e) {
     const count = randInt(IMG_COUNT_MIN, IMG_COUNT_MAX)
+    const categoryName = this.parseCommand(e.msg);
+    let apisToTry = [];
+
+    // 1. 新 YUJN 库图片分类
+    if (IMG_YUJN_MAP[categoryName]) {
+      apisToTry.push(async (c) => {
+        const apiUrl = _decodeYujnImg(categoryName);
+        const joiner = apiUrl.includes('?') ? '&' : '?';
+        const urls = Array.from({ length: c }).map(() => `${apiUrl}${joiner}_r=${Math.random().toString(36).substring(2)}`);
+        return { name: categoryName, urls: urls };
+      });
+    }
+
+    // 2. 老 PT 库图片分类
+    if (IMG_TZ_MAP[categoryName]) {
+      apisToTry.push(async (c) => {
+        const apiUrl = _decodeImg(categoryName);
+        const urls = Array.from({ length: c }).map(() => `${apiUrl}?_r=${Math.random().toString(36).substring(2)}`);
+        return { name: categoryName, urls: urls };
+      });
+    }
+
+    // 3. 老 JSON 库图片分类
+    if (OLD_IMG_CATE_MAP[categoryName]) {
+      apisToTry.push(async (c) => {
+        const urls = await OLD_IMG_CATE_MAP[categoryName](c);
+        return { name: categoryName, urls: urls };
+      });
+    }
+
+    // 回退到随机妹子池
+    if (apisToTry.length === 0) apisToTry = [...OLD_IMAGE_RANDOM_APIS];
+
+    apisToTry.sort(() => Math.random() - 0.5);
+    let result = null;
     
-    // 随机打乱 API 顺序，实现失败自动降级重试
-    const shuffledApis = [...IMAGE_APIS].sort(() => Math.random() - 0.5)
-    
-    let result = null
-    for (const apiFunc of shuffledApis) {
+    for (const apiFunc of apisToTry) {
       try {
-        const res = await apiFunc(count)
-        // 确保获取到了足够的图片（至少一张）才跳出循环
+        const res = await apiFunc(count);
         if (res && res.urls && res.urls.length > 0) {
-          result = res
-          break
+          result = { name: res.name || categoryName, urls: res.urls };
+          break;
         }
-      } catch (err) {
-        Bot?.logger?.warn?.(`[xjj] 某个图片接口请求失败，正在尝试切换...`)
-      }
+      } catch (err) { }
     }
 
     if (!result || result.urls.length === 0) {
-      return e.reply('这会儿所有图库接口都拥挤或失效了，请稍后再试吧~')
+      return e.reply(`这会儿 [${categoryName}] 的图库都拥挤或失效了，请稍后再试吧~`)
     }
 
     await e.reply(`本小姐正在挑选 ${result.urls.length} 张 [${result.name}] 美图...`)
@@ -238,21 +270,24 @@ export class xjjUltimate extends plugin {
 
     for (let i = 0; i < result.urls.length; i += BATCH_SIZE) {
       const batchUrls = result.urls.slice(i, i + BATCH_SIZE)
-
       const settled = await Promise.allSettled(batchUrls.map(u => urlToBase64(u)))
-      const validBase64 = settled
-        .filter(x => x.status === 'fulfilled' && x.value)
-        .map(x => x.value)
+      
+      // ====== 新增的日志打印与过滤逻辑 ======
+      const validBase64 = [];
+      settled.forEach((x, index) => {
+        if (x.status === 'fulfilled' && x.value) {
+          validBase64.push(x.value);
+        } else {
+          // 注意这里用 i + index + 1，精准定位是第几张图挂了
+          Bot?.logger?.warn?.(`[xjj] 第 ${i + index + 1} 张图片下载或处理失败，被过滤`);
+        }
+      });
+      // ======================================
 
       if (validBase64.length === 0) continue
 
       const nodes = validBase64.map((b64, idx) => ({
-        user_id: uin,
-        nickname: title,
-        message: [
-          `第 ${i + idx + 1} 张`,
-          seg.image(b64)
-        ]
+        user_id: uin, nickname: title, message: [`第 ${i + idx + 1} 张`, seg.image(b64)]
       }))
 
       try {
@@ -264,56 +299,47 @@ export class xjjUltimate extends plugin {
           for (const node of nodes) await e.reply(node.message)
         }
       } catch (err) {
-        Bot?.logger?.error?.(`[xjj] 合并转发失败，降级逐张发送: ${err?.message || err}`)
-        for (const node of nodes) {
-          try { await e.reply(node.message) } catch {}
-        }
+        for (const node of nodes) { try { await e.reply(node.message) } catch {} }
       }
-
-      if (i + BATCH_SIZE < result.urls.length) {
-        await sleep(1000) 
-      }
+      if (i + BATCH_SIZE < result.urls.length) await sleep(1000) 
     }
-
     return true
   }
 
   async xjjVideo(e) {
     const seg = await getSegment()
-    
-    const shuffledApis = [...VIDEO_APIS].sort(() => Math.random() - 0.5)
-    
-    let result = null
-    for (const apiFunc of shuffledApis) {
-      try {
-        const res = await apiFunc()
-        if (res && res.url) {
-          result = res
-          break
-        }
-      } catch (err) {
-        Bot?.logger?.warn?.(`[xjj] 某个视频接口请求失败，正在尝试切换...`)
+    const categoryName = this.parseCommand(e.msg);
+    let targetApi = null;
+
+    // 1. 匹配新的 YUJN 视频分类库
+    if (VID_YUJN_MAP[categoryName]) {
+      targetApi = { url: _decodeYujnVid(categoryName), title: "" };
+    } 
+    // 2. 没有对应分类，回退到全新的混合随机视频池
+    else {
+      const shuffledApis = [...MIXED_VIDEO_RANDOM_APIS].sort(() => Math.random() - 0.5);
+      for (const apiFunc of shuffledApis) {
+        try {
+          const res = await apiFunc();
+          if (res && res.url) { targetApi = res; break; }
+        } catch (err) { }
       }
     }
 
-    if (!result || !result.url) {
+    if (!targetApi || !targetApi.url) {
       return e.reply('视频接口暂时都没数据或挂掉了~')
     }
 
+    await e.reply(`本小姐正在挑选 [${categoryName}] 视频...`)
+
     try {
-      // 视频带标题则拼接标题文本
       const replyMsg = []
-      if (result.title) {
-        replyMsg.push(`������ ${result.title.trim()}\n`)
-      }
-      replyMsg.push(seg.video(result.url))
-      
+      if (targetApi.title) replyMsg.push(`������ ${targetApi.title.trim()}\n`)
+      replyMsg.push(seg.video(targetApi.url))
       await e.reply(replyMsg)
     } catch (err) {
-      Bot?.logger?.error?.(`[xjj] 视频发送异常: ${err.message}`)
       await e.reply('视频获取到了，但发送出错了')
     }
-    
     return true
   }
 }
