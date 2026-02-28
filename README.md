@@ -6,10 +6,10 @@
 **早报 · 摸鱼日历 · 米游社 COS · WP 抓图 · 随机图/视频**
 
 <p>
-  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/OriginSXC/Huitian-mini"></a>
-  <img alt="node" src="https://img.shields.io/badge/node-%3E%3D18-brightgreen">
-  <a href="https://github.com/OriginSXC/Huitian-mini/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat"></a>
-  <a href="https://github.com/OriginSXC/Huitian-mini/issues"><img alt="issues" src="https://img.shields.io/github/issues/OriginSXC/Huitian-mini"></a>
+  <a href="./LICENSE"><img alt="license" src="[https://img.shields.io/github/license/OriginSXC/Huitian-mini](https://img.shields.io/github/license/OriginSXC/Huitian-mini)"></a>
+  <img alt="node" src="[https://img.shields.io/badge/node-%3E%3D18-brightgreen](https://img.shields.io/badge/node-%3E%3D18-brightgreen)">
+  <a href="[https://github.com/OriginSXC/Huitian-mini/stargazers](https://github.com/OriginSXC/Huitian-mini/stargazers)"><img alt="stars" src="[https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat](https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat)"></a>
+  <a href="[https://github.com/OriginSXC/Huitian-mini/issues](https://github.com/OriginSXC/Huitian-mini/issues)"><img alt="issues" src="[https://img.shields.io/github/issues/OriginSXC/Huitian-mini](https://img.shields.io/github/issues/OriginSXC/Huitian-mini)"></a>
 </p>
 </div>
 
@@ -28,7 +28,7 @@
 | 摸鱼日历 | `#摸鱼日历` | ✅（默认 09:00） | `node-fetch` `node-schedule` | 拉取摸鱼人日历并推送 |
 | 米游社 COS（reborn） | `#cos` / `mys cos`（可加 `ob/icqq/auto/plain`） | ✅（默认 12:08:30） | `node-fetch` `node-schedule` `sharp` | 随机抓取米游社贴子图片，分批合并转发 |
 | WOC 抓图（reborn） | `#woc` / `#卧槽` | ❌ | `sharp` | WP 媒体库抓图 → 强制 Base64 → 分批合并转发（优先 icqq） |
-| XJJ 稳定版 | `#小姐姐` / `#xjj`；视频：`#小姐姐视频`/`#xjjpro` | ❌ | `node-fetch` `sharp` | 限并发补齐、keep-alive、失败自动降级逐张发送 |
+| XJJ 极速增强版 | `#xjj` / `#黑丝`；视频：`#xjjpro` / `#jk视频` 等 | ❌ | `node-fetch` `sharp` | 多接口聚合，支持全量中英文别名分类（JK/黑丝/网红/变装等），内置防缓存与过滤排错机制 |
 
 ---
 
@@ -55,7 +55,6 @@ pnpm install --filter=Huitian-mini
 重启 Bot 后即可。
 
 ---
-
 
 ## 配置说明 (全新 YAML 配置)
 
@@ -101,8 +100,8 @@ mys_cos:
 * **COS**：`#cos` / `#mys cos`
 * **指定模式**：`#cos icqq` / `#cos ob` / `#cos auto` / `#cos plain`
 * **WOC**：`#woc` / `#卧槽`
-* **XJJ**：`#小姐姐` / `#xjj`
-* **XJJ 视频**：`#小姐姐视频` / `#xjjpro`
+* **XJJ 图片**：`#小姐姐` / `#xjj` / `#黑丝` / `#jk` / `#美腿图片`（支持数十种中英分类匹配，混合随机接口）
+* **XJJ 视频**：`#小姐姐视频` / `#xjjpro` / `#黑丝视频` / `#鞠婧祎pro` / `#慢摇视频`（聚合多图床与网红分类直连）
 
 ## 免责声明
 
