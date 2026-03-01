@@ -24,18 +24,18 @@ const DOWNLOAD_TIMEOUT     = cfg.DOWNLOAD_TIMEOUT || 30000
 // 1. 新版 yujn.cn 接口基础 (包含图片和视频)
 const _0xYujnBase = "aHR0cHM6Ly9hcGkueXVqbi5jbi9hcGkv"; // https://api.yujn.cn/api/
 
-// 视频可用分类 (已剔除失效的 tzjsy)
+// 视频可用分类
 const VID_YUJN_MAP = {
   "黑丝": "heisis.php?type=video", "白丝": "baisis.php?type=video", 
   "漫展": "manzhan.php?type=video", "jk": "jksp.php?type=video", 
   "甜妹": "tianmei.php?type=video", "萝莉": "luoli.php?type=video", 
   "清纯": "qingchun.php?type=video", "吊带": "diaodai.php?type=video", 
-  "变装": ["ksbianzhuang.php?type=video", "bianzhuang.php?"], // 支持多接口随机
+  "变装": ["ksbianzhuang.php?type=video", "bianzhuang.php?"], 
   "女高": "nvgao.php?type=video", "双倍快乐": "sbkl.php?type=video", 
   "怼脸自拍": "duilian.php?type=video", "穿搭": "chuanda.php?type=video", 
   "完美身材": "wmsc.php?type=video", "慢摇": "manyao.php?type=video", 
   "cos": "COS.php?type=video", "热舞": "rewu.php?type=video", 
-  "玉足": "yuzu.php?type=video", "美腿": "yuzu.php?type=video", // 玉足美腿合并
+  "玉足": "yuzu.php?type=video", "美腿": "yuzu.php?type=video",
   "女大": "nvda.php?type=video", "古风": "hanfu.php?type=video",
   
   // 网红系列
@@ -46,7 +46,7 @@ const VID_YUJN_MAP = {
 
 const _decodeYujnVid = (key) => {
   let path = VID_YUJN_MAP[key];
-  if (Array.isArray(path)) path = path[randInt(0, path.length - 1)]; // 随机挑一个
+  if (Array.isArray(path)) path = path[randInt(0, path.length - 1)];
   return Buffer.from(_0xYujnBase, 'base64').toString() + path;
 };
 
@@ -56,7 +56,7 @@ const IMG_YUJN_MAP = {
 };
 const _decodeYujnImg = (key) => Buffer.from(_0xYujnBase, 'base64').toString() + IMG_YUJN_MAP[key];
 
-// 2. 老版 pt.tzjsy 图片接口 (继续保留使用)
+// 2. 老版 pt.tzjsy 图片接口
 const _0xImgBase = "aHR0cDovL3B0LnR6anN5LmNuLw=="; // http://pt.tzjsy.cn/
 const _0xImgSuf = "L2ltZy5waHA="; // /img.php
 
@@ -71,7 +71,7 @@ const ALIAS_MAP = {
   "xjj": "随机小姐姐", "小姐姐": "随机小姐姐"
 };
 
-// 动态生成正则匹配规则 (涵盖所有类名、网红名)
+// 动态生成正则匹配规则
 const categoryKeys = Object.keys(VID_YUJN_MAP).concat(Object.keys(IMG_TZ_MAP)).concat(Object.keys(IMG_YUJN_MAP)).concat(Object.keys(ALIAS_MAP));
 const REGEX_CATE_STR = [...new Set(categoryKeys)].join('|');
 // =============================================
@@ -99,9 +99,7 @@ async function fetchJson(url, timeoutMs = FETCH_TIMEOUT) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal, agent: pickAgent(url), headers: { 'User-Agent': pickUA() }
-    })
+    const res = await fetch(url, { signal: ctrl.signal, agent: pickAgent(url), headers: { 'User-Agent': pickUA() } })
     return res.ok ? await res.json() : null;
   } catch (err) { return null; } finally { clearTimeout(t); }
 }
@@ -110,9 +108,7 @@ async function fetchBuffer(url, timeoutMs = DOWNLOAD_TIMEOUT) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal, agent: undefined, redirect: 'follow', headers: { 'User-Agent': pickUA() }
-    })
+    const res = await fetch(url, { signal: ctrl.signal, agent: undefined, redirect: 'follow', headers: { 'User-Agent': pickUA() } })
     return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
   } catch (err) { return null; } finally { clearTimeout(t); }
 }
@@ -165,13 +161,7 @@ const OLD_IMAGE_RANDOM_APIS = [
   }
 ];
 
-// 新增无标题的视频合集 (直连地址)
-const YUJN_RANDOM_VIDEOS = [
-  'zzxjj.php?type=video', 'xjj.php?type=video', 'juhexjj.php?type=video', 'ksxjjsp.php?'
-];
-
 const MIXED_VIDEO_RANDOM_APIS = [
-  // 原有的 JSON 解析库
   async () => {
     const res = await fetchJson('https://api.yujn.cn/api/zzxjj.php?type=json')
     return (res && res.data) ? { url: res.data, title: res.title || '' } : null;
@@ -179,31 +169,24 @@ const MIXED_VIDEO_RANDOM_APIS = [
   async () => {
     const res = await fetchJson('https://api.kuleu.com/api/MP4_xiaojiejie?type=json')
     return (res && res.mp4_video) ? { url: res.mp4_video, title: '' } : null;
-  },
-  // 新增直连池，每次随机抽取 YUJN 库
-  ...YUJN_RANDOM_VIDEOS.map(path => async () => {
-    return { url: Buffer.from(_0xYujnBase, 'base64').toString() + path, title: "" };
-  })
+  }
 ];
 // ============================================
 
 export class xjjUltimate extends plugin {
   constructor() {
     super({
-      name: '小姐姐-极速完整版(日志排错版)',
-      dsc: '多接口聚合+全量中英文别名匹配+缺图排错',
+      name: '小姐姐-极速完整版(智能盲盒版)',
+      dsc: '多接口聚合+全库盲盒+跨界纠错防误触',
       event: 'message',
       priority: 5000,
       rule: [
-        // 匹配: #hs, #黑丝, #jk, #黑丝图片 等
         { reg: new RegExp(`^#?(${REGEX_CATE_STR})(图片|图)?$`, 'i'), fnc: 'xjj' },
-        // 匹配: #hspro, #黑丝pro, #jk视频, #鞠婧祎视频 等
         { reg: new RegExp(`^#?(${REGEX_CATE_STR})(视频|pro)$`, 'i'), fnc: 'xjjVideo' }
       ]
     })
   }
 
-  // 工具方法：提取并转换用户指令
   parseCommand(msg) {
     let raw = msg.replace(/^#/, '').replace(/(图片|图|视频|pro)$/i, '').toLowerCase();
     return ALIAS_MAP[raw] || raw;
@@ -211,10 +194,30 @@ export class xjjUltimate extends plugin {
 
   async xjj(e) {
     const count = randInt(IMG_COUNT_MIN, IMG_COUNT_MAX)
-    const categoryName = this.parseCommand(e.msg);
+    let categoryName = this.parseCommand(e.msg);
+
+    // ====== 1. 盲盒模式与类型跨界纠错 ======
+    if (categoryName === '随机小姐姐') {
+      // 提取所有可用的图片分类名并去重
+      const allImgKeys = [...new Set([
+        ...Object.keys(IMG_YUJN_MAP), 
+        ...Object.keys(IMG_TZ_MAP), 
+        ...Object.keys(OLD_IMG_CATE_MAP)
+      ])];
+      categoryName = allImgKeys[randInt(0, allImgKeys.length - 1)];
+    } else {
+      // 检查该分类是否属于“只有视频，没有图片”
+      const isImg = IMG_YUJN_MAP[categoryName] || IMG_TZ_MAP[categoryName] || OLD_IMG_CATE_MAP[categoryName];
+      const isVid = VID_YUJN_MAP[categoryName];
+      
+      if (!isImg && isVid) {
+        return e.reply(`[${categoryName}] 只有视频哦，请尝试发送 #${categoryName}视频`);
+      }
+    }
+
+    // ====== 2. 构建请求池 ======
     let apisToTry = [];
 
-    // 1. 新 YUJN 库图片分类
     if (IMG_YUJN_MAP[categoryName]) {
       apisToTry.push(async (c) => {
         const apiUrl = _decodeYujnImg(categoryName);
@@ -224,7 +227,6 @@ export class xjjUltimate extends plugin {
       });
     }
 
-    // 2. 老 PT 库图片分类
     if (IMG_TZ_MAP[categoryName]) {
       apisToTry.push(async (c) => {
         const apiUrl = _decodeImg(categoryName);
@@ -233,7 +235,6 @@ export class xjjUltimate extends plugin {
       });
     }
 
-    // 3. 老 JSON 库图片分类
     if (OLD_IMG_CATE_MAP[categoryName]) {
       apisToTry.push(async (c) => {
         const urls = await OLD_IMG_CATE_MAP[categoryName](c);
@@ -241,7 +242,7 @@ export class xjjUltimate extends plugin {
       });
     }
 
-    // 回退到随机妹子池
+    // 如果连盲盒都匹配失败，最后的回退底线
     if (apisToTry.length === 0) apisToTry = [...OLD_IMAGE_RANDOM_APIS];
 
     apisToTry.sort(() => Math.random() - 0.5);
@@ -272,17 +273,14 @@ export class xjjUltimate extends plugin {
       const batchUrls = result.urls.slice(i, i + BATCH_SIZE)
       const settled = await Promise.allSettled(batchUrls.map(u => urlToBase64(u)))
       
-      // ====== 新增的日志打印与过滤逻辑 ======
       const validBase64 = [];
       settled.forEach((x, index) => {
         if (x.status === 'fulfilled' && x.value) {
           validBase64.push(x.value);
         } else {
-          // 注意这里用 i + index + 1，精准定位是第几张图挂了
           Bot?.logger?.warn?.(`[xjj] 第 ${i + index + 1} 张图片下载或处理失败，被过滤`);
         }
       });
-      // ======================================
 
       if (validBase64.length === 0) continue
 
@@ -308,15 +306,29 @@ export class xjjUltimate extends plugin {
 
   async xjjVideo(e) {
     const seg = await getSegment()
-    const categoryName = this.parseCommand(e.msg);
+    let categoryName = this.parseCommand(e.msg);
     let targetApi = null;
 
-    // 1. 匹配新的 YUJN 视频分类库
+    // ====== 1. 盲盒模式与类型跨界纠错 ======
+    if (categoryName === '随机小姐姐') {
+      // 提取所有可用的视频分类名并去重，开启盲盒
+      const allVidKeys = [...Object.keys(VID_YUJN_MAP)];
+      categoryName = allVidKeys[randInt(0, allVidKeys.length - 1)];
+    } else {
+      // 检查该分类是否属于“只有图片，没有视频”
+      const isVid = VID_YUJN_MAP[categoryName];
+      const isImg = IMG_YUJN_MAP[categoryName] || IMG_TZ_MAP[categoryName] || OLD_IMG_CATE_MAP[categoryName];
+      
+      if (!isVid && isImg) {
+        return e.reply(`[${categoryName}] 只有图片哦，请尝试发送 #${categoryName}图片`);
+      }
+    }
+
+    // ====== 2. 匹配对应分类 ======
     if (VID_YUJN_MAP[categoryName]) {
       targetApi = { url: _decodeYujnVid(categoryName), title: "" };
-    } 
-    // 2. 没有对应分类，回退到全新的混合随机视频池
-    else {
+    } else {
+      // 极少发生的回退逻辑：去老库捞一条
       const shuffledApis = [...MIXED_VIDEO_RANDOM_APIS].sort(() => Math.random() - 0.5);
       for (const apiFunc of shuffledApis) {
         try {
