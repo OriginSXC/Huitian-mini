@@ -9,6 +9,9 @@
 ![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 [![stars](https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat)](https://github.com/OriginSXC/Huitian-mini/stargazers)
 [![issues](https://img.shields.io/github/issues/OriginSXC/Huitian-mini)](https://github.com/OriginSXC/Huitian-mini/issues)
+[![gitee](https://img.shields.io/badge/Gitee-%E9%95%9C%E5%83%8F-C71D23?logo=gitee)](https://gitee.com/OriginSXC/Huitian-mini)
+
+**GitHub**：<https://github.com/OriginSXC/Huitian-mini> ｜ **Gitee 镜像**：<https://gitee.com/OriginSXC/Huitian-mini>
 
 </div>
 
@@ -36,7 +39,11 @@
 在 **云崽根目录** 执行：
 
 ```bash
+# GitHub（海外推荐）
 git clone https://github.com/OriginSXC/Huitian-mini.git ./plugins/Huitian-mini
+
+# Gitee 镜像（国内推荐）
+git clone https://gitee.com/OriginSXC/Huitian-mini.git ./plugins/Huitian-mini
 ```
 
 ### 安装依赖
