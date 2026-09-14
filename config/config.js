@@ -49,8 +49,12 @@ class Config {
       console.error(`[${pluginName}] YAML 格式解析错误，请检查配置文件:`, e.message)
     }
 
-    // 深合并：以 defData 为基础，userData 中的同名配置会覆盖它
-    const config = _.merge({}, defData, userData)
+    // 深合并：以 defData 为基础，userData 中的同名配置会覆盖它。
+    // 数组走整体覆盖，不做逐下标合并——否则用户配置 [a, b] 叠在默认 [a, b, c] 上会残留 c，
+    // 且用户写 [] 想清空时反而会拿到默认值。
+    const config = _.mergeWith({}, defData, userData, (objVal, srcVal) =>
+      Array.isArray(srcVal) ? srcVal.slice() : undefined
+    )
     
     return app ? (config[app] || {}) : config
   }

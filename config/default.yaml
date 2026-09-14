@@ -48,6 +48,105 @@ woc:
   FETCH_TIMEOUT_MS: 100000
   JPEG_WIDTH: 1080
   JPEG_QUALITY: 70
+  API_TIMEOUT_MS: 15000          # 图源 API 超时（毫秒），超时即切下一个源
+  # ---- 单张图下载的重试与节流 ----
+  DOWNLOAD_RETRY: 2              # 重试次数，只对 429 限流 / 408 / 5xx / 超时重试；404、403 直接放弃
+  DOWNLOAD_RETRY_DELAY_MS: 1000  # 重试基础退避，指数增长 + 抖动；服务端给了 Retry-After 优先听它的
+  DOWNLOAD_GAP_MS: 250           # 图间隔全局默认；各源可用下面的 *_DOWNLOAD_GAP_MS 单独覆盖
+  REFILL_BUDGET: 40              # 单次 #woc 最多下载尝试次数——死链会一直换下一张，这是安全上限
+  GROUP_RETRY: 2                 # 整组图全是死链时，最多再换几组（换组才可能真出图）
+  DEAD_STREAK: 5                 # 连续几张死链就判定整组已被删，立刻换组（图集是整套传的，不必把几十张全试一遍）
+  LIMIT_STREAK: 3                # 连续几张被限流(429)才放弃；单张 429 不代表下一张也拿不到
+  BYPASS_PHOTON: true            # i*.wp.com 代理对个别图永久返回 429（换节点/等待都没用），还原成源站直链
+  FAIL_LINK_ONLY_WHEN_EMPTY: true # 只有一张图都没发出时才发降级链接；已发满就不再刷屏
+  DROP_DEAD_IMAGES: true         # 404/410 这类死链直接剔除，不再降级发链接（链接点开也是 404）
+  DEAD_STATUS: [404, 410]        # 视为「永久失效」的状态码；429/超时不算，那些 URL 还是活的
+  FALLBACK_ENABLE: true          # true=某个源挂了就换下一个；false=只试随机挑中的那一个，挂了就算了
+
+  # ================= R18 总开关 =================
+  # false：各源只用「非 R18 分类」（cosplay 那一档），下面 *_CATEGORIES_R18 里的分类完全不碰
+  # true ：把 *_CATEGORIES_R18 也并进候选分类
+  R18_ENABLE: false
+  # R18 私聊开关：true = R18 分类只在私聊放开，群聊自动降级回非 R18（cosplay 那档）
+  #               false = 群聊私聊一视同仁，只看 R18_ENABLE
+  R18_PRIVATE_ONLY: true
+  # R18 输出概率（0~1）：允许 R18 的场合，每次按这个概率决定本轮出不出 R18。
+  # 掷中时只从「配了 R18 分类的源」里随机挑，且只用 R18 分类，不掺 cosplay，
+  # 所以这个数字就是实打实的出图率。0.3 = 三成出 R18；1 = 每次都出；0 = 等于关掉。
+  # 若掷中时一个 R18 源都没有（全禁用/全冷却），会自动降级走非 R18，不会报错。
+  R18_RATE: 0.3
+  # R18 那档在一组图里怎么挑 5 张：random=随机 / reverse=倒序 / order=按原顺序
+  # 图集开头往往最平淡，默认 random
+  R18_PICK_ORDER: random
+  # 普通档在一组图里怎么挑：random=随机 / reverse=倒序 / order=按原顺序
+  PICK_ORDER: random
+
+  # ================= 图源选取 =================
+  # 候选图源清单，删掉某个 key 即等于不用它
+  # mikagogo 暂时摘掉：它正文常抠不到图，要退回媒体库取封面，一组里 5 张会来自不同文章、不成套。
+  # 想恢复就把 mikagogo 加回列表（两个 yaml 都要改，见下方说明）
+  SOURCE_ORDER: [main, coserlab, 4khd, 4kup, bestgirlsexy]
+  # random = 每次随机挑一个源（默认），挂了再随机换下一个；order = 按上面的顺序依次试
+  SOURCE_PICK: random
+  # 某个源抓挂后冷却多少秒：冷却期内不是被丢掉，而是排到最后，全挂时还能兜住。0 = 不冷却
+  SOURCE_FAIL_COOLDOWN: 600
+
+  # ---- main：主站 shaonvzhi ----
+  SNZ_BASE: https://shaonvzhi.top/wp-json/wp/v2
+  SNZ_DOWNLOAD_GAP_MS: 250       # 该源的图间隔，留空则用全局 DOWNLOAD_GAP_MS
+
+  # ---- coserlab（正文内嵌整套图集，一篇=一组）----
+  COSERLAB_ENABLE: true
+  COSERLAB_BASE: https://coserlab.io/wp-json/wp/v2
+  COSERLAB_CATEGORIES: [1, 5]    # 1=cosplay 5=portrait，每次随机取一个
+  COSERLAB_REFERER: https://coserlab.io/
+  COSERLAB_POSTS_PER_PAGE: 5
+  COSERLAB_DOWNLOAD_GAP_MS: 250  # autoselect.nian.nz 不限流，可以快
+
+  # ---- mikagogo ----
+  MIKAGOGO_ENABLE: true
+  MIKAGOGO_BASE: https://mikagogo.com/wp-json/wp/v2
+  MIKAGOGO_CATEGORY: 12          # cosplay
+  MIKAGOGO_POSTS_PER_PAGE: 20
+  MIKAGOGO_DOWNLOAD_GAP_MS: 250
+
+  # ---- 4khd（正文一篇内嵌整套图，实测 10~200 张）----
+  # cosplay(4) 放在非 R18 档，R18 关着也能抓；其余分类只在 R18 开时才并进来。
+  KHD_ENABLE: true
+  KHD_BASES:                     # 主域被 WAF 挡了自动换第二个（4khd 的跳转站）
+    - https://www.4khd.com/wp-json/wp/v2
+    - https://hecoq.uuss.uk/wp-json/wp/v2
+  KHD_CATEGORIES: [4]            # 非 R18 档：4=cosplay
+  KHD_CATEGORIES_R18: [3, 21, 9, 26]  # R18 档分类 ID（含义见站点自身分类页，此处不展开）
+  KHD_REFERER: https://www.4khd.com/
+  KHD_POSTS_PER_PAGE: 2
+  KHD_DOWNLOAD_GAP_MS: 250       # 绕过 Photon 直连源站后不再限流，实测 0ms 间隔也 10/10
+
+  # ---- 4kup（正文内嵌整套图，实测 14~37 张/篇）----
+  # AI 图在接口层就用 categories_exclude 排掉，再加一道标题正则兜底。
+  KUP_ENABLE: true
+  KUP_BASE: https://4kup.net/wp-json/wp/v2
+  KUP_CATEGORIES: [2940, 10, 2939, 434, 2772]
+    # 非 R18 档：2940=Coser 10=Chinese 2939=Asian 434=XIUREN 2772=Korean
+  KUP_CATEGORIES_R18: [7064, 4524]
+    # R18 档分类 ID（含义见站点自身分类页，此处不展开）
+  KUP_EXCLUDE_CATEGORIES: [7253, 7295, 4450, 6780, 6723, 6649, 6648]
+    # 要排掉的 AI 分类：AI / AI Enhanced / AI Generated / AI girls / AIgirl / AIgirls / AIPD
+  KUP_REFERER: https://4kup.net/
+  KUP_POSTS_PER_PAGE: 3
+  KUP_DOWNLOAD_GAP_MS: 250       # blogger.googleusercontent.com 不限流
+
+  # ---- bestgirlsexy（源站当前 523 打不开，默认关）----
+  # 站点恢复后，把 cosplay 分类 ID 填进 BGS_CATEGORIES，它就和 4khd 一样不受 R18 限制。
+  BGS_ENABLE: false
+  BGS_BASES:
+    - https://bestgirlsexy.com/wp-json/wp/v2
+  BGS_CATEGORIES: []             # 非 R18 档：cosplay 分类 ID（站点打不开，暂时摸不到）
+  BGS_CATEGORIES_R18: []         # R18 档
+  BGS_UNFILTERED_WHEN_R18: true  # R18 开且上面两个都为空时，不带分类直接抓
+  BGS_REFERER: https://bestgirlsexy.com/
+  BGS_POSTS_PER_PAGE: 3
+  BGS_DOWNLOAD_GAP_MS: 250
 
 # 小姐姐图片配置
 xjj:

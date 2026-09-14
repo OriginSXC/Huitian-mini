@@ -21,6 +21,7 @@
 - ✅ **合并转发**（OneBot / icqq），支持分批发送降低风控
 - ✅ **可选 sharp 压缩/裁剪**：降低大图体积与发送失败概率
 - ✅ **不稳定源站增强**：Base64 强制发送、限并发拉取、keep-alive 等
+- ✅ **WOC 多图源容错**：随机选源、挂了自动换源并冷却、死链自动换图换组
 
 ## 插件列表
 
@@ -29,7 +30,7 @@
 | 今日早报 | `#今日早报` | ✅（默认 09:30） | `node-fetch` `node-schedule` | 拉取“60s 早报”图片并推送 |
 | 摸鱼日历 | `#摸鱼日历` | ✅（默认 09:00） | `node-fetch` `node-schedule` | 拉取摸鱼人日历并推送 |
 | 米游社 COS（reborn） | `#cos` / `mys cos`（可加 `ob/icqq/auto/plain`） | ✅（默认 12:08:30） | `node-fetch` `node-schedule` `sharp` | 随机抓取米游社贴子图片，分批合并转发 |
-| WOC 抓图（reborn） | `#woc` / `#卧槽` | ❌ | `sharp` | WP 媒体库抓图 → 强制 Base64 → 分批合并转发（优先 icqq） |
+| WOC 抓图（reborn） | `#woc` / `#卧槽` | ❌ | `sharp` | 多站 WP 接口抓图 → 强制 Base64 → 分批合并转发（优先 icqq）；随机选源、死链自动换图、可选 R18 分档 |
 | XJJ 极速增强版 | `#xjj` / `#黑丝`；视频：`#xjjpro` / `#jk视频` 等 | ❌ | `node-fetch` `sharp` | 多接口聚合，支持全量中英文别名分类（JK/黑丝/网红/变装等），内置防缓存与过滤排错机制 |
 
 ---
@@ -98,6 +99,53 @@ mys_cos:
 > * **Sharp 压缩设置**：`SHARP_ENABLE` / `JPEG_QUALITY` / `SHARP_MAX_BYTES` 等
 
 > **💡 Cron 小贴士**：若 `node-schedule` 不认 `?`（Quartz 风格），请在 `config.yaml` 中把定时表达式从 `0 30 9 * * ?` 改成 `0 30 9 * * *`（把 `?` 替换为 `*` 即可）。
+
+### WOC 抓图的配置要点
+
+WOC 从多个 WordPress 站点的公开 REST 接口抓图，**一次 `#woc` 的若干张图来自同一个站的同一篇文章**（整套图集），不会跨站拼凑。
+
+**图源选取**
+
+```yaml
+woc:
+  SOURCE_ORDER: [main, coserlab, 4khd, 4kup, bestgirlsexy]  # 候选图源清单，删掉某项即不用它
+  SOURCE_PICK: random          # random=每次随机挑一个（默认）；order=按上面顺序依次试
+  FALLBACK_ENABLE: true        # 某个源挂了就换下一个
+  SOURCE_FAIL_COOLDOWN: 600    # 抓挂的源冷却 600 秒，期间排到队尾而不是直接丢掉
+```
+
+**取图顺序**：图集开头往往最平淡，默认不取前几张。
+
+```yaml
+  PICK_ORDER: random           # random=随机 / reverse=倒序 / order=按原顺序
+  R18_PICK_ORDER: random       # R18 档单独配
+```
+
+**R18 分档（默认全关）**：每个源的分类拆成「非 R18 档」和「R18 档」两组，三层开关递进控制。
+
+```yaml
+  R18_ENABLE: false            # 总开关；关闭时各源只用非 R18 分类（cosplay 那档）
+  R18_PRIVATE_ONLY: true       # 只在私聊放开，群聊自动降级回非 R18
+  R18_RATE: 0.3                # 出图概率。掷中时只从配了 R18 分类的源里挑，
+                               # 且只用 R18 分类，所以这就是实打实的出图率
+```
+
+> ⚠️ R18 相关分类默认全部关闭。是否开启、在什么场合开启，由使用者自行判断并承担责任。
+
+**下载容错**
+
+```yaml
+  DOWNLOAD_RETRY: 2            # 只对 429/408/5xx/超时重试；404/403 直接放弃
+  DOWNLOAD_GAP_MS: 250         # 图间隔全局默认，各源可用 <前缀>_DOWNLOAD_GAP_MS 覆盖
+  DROP_DEAD_IMAGES: true       # 404/410 死链直接剔除并换下一张（链接点开也是 404）
+  DEAD_STREAK: 5               # 连续 5 张死链 → 判定整组已被删，立刻换下一组
+  GROUP_RETRY: 2               # 整组死链时最多再换几组
+  BYPASS_PHOTON: true          # 把 i*.wp.com 图片代理还原成源站直链
+```
+
+> **关于 `BYPASS_PHOTON`**：WordPress 的 Photon 图片代理（`i0~i3.wp.com`）会对部分图片**永久**返回 `429`——换节点、等再久都一样，但源站直链是好的。开启后自动还原，实测可把某站的取图成功率从 16/24 提到 24/24。
+
+---
 
 ## 指令示例
 
