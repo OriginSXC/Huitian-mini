@@ -23,6 +23,9 @@ const GROUP_RETRY         = numOr(cfg.GROUP_RETRY, 2)              // 整组全�
 const DEAD_STREAK         = numOr(cfg.DEAD_STREAK, 5)              // 连续几张死链就判定整组已失效，立刻放弃该组
 const LIMIT_STREAK        = numOr(cfg.LIMIT_STREAK, 3)             // 连续几张被限流才放弃；单张 429 不代表整站都拿不到
 const BYPASS_PHOTON       = cfg.BYPASS_PHOTON ?? true               // 把 i*.wp.com 代理链接还原成源站直链
+const KUP_IMG_SIZE        = String(cfg.KUP_IMG_SIZE ?? 's0')        // 4kup 正文里是 400px 缩略图，s0=原图
+const KHD_IMG_SIZE        = String(cfg.KHD_IMG_SIZE ?? 's0')        // 4khd 默认 w1300，s0=原图（注意 s1600 反而更小）
+const CL_FULL_SIZE        = cfg.COSERLAB_FULL_SIZE ?? true          // coserlab 去掉 -scaled 取原图
 const FAIL_LINK_ONLY_EMPTY= cfg.FAIL_LINK_ONLY_WHEN_EMPTY ?? true   // 只有一张图都没发出去时才发降级链接
 const DROP_DEAD           = cfg.DROP_DEAD_IMAGES ?? true           // 死链直接剔除，不再降级发链接（链接本身也是死的）
 const DEAD_STATUS         = listOr(cfg.DEAD_STATUS, [404, 410])    // 视为「永久失效」的状态码
@@ -235,6 +238,29 @@ function bypassPhoton (u) {
   return 'https://' + m[1].split('?')[0]
 }
 
+// Google/Blogger 系图床（blogger.googleusercontent.com、pic.4khd.com）的路径里有个尺寸段，
+// 形如 h600-e30 / w1300-rw / s1600；站点正文给的往往是缩略图，换成 s0 才是原图。
+function rewriteGoogleSize (u, size) {
+  if (!size) return u
+  try {
+    const url = new URL(u)
+    const parts = url.pathname.split('/')
+    const i = parts.length - 2                       // 尺寸段固定在文件名前一段
+    if (i > 0 && /^[swh]\d+(-[A-Za-z0-9]+)?$/.test(parts[i])) {
+      parts[i] = size
+      url.pathname = parts.join('/')
+      url.search = ''                                // 顺手去掉 ?w= 之类的缩放参数
+      return url.toString()
+    }
+  } catch {}
+  return u
+}
+
+// WordPress 上传超过阈值会生成 xxx-scaled.jpg，去掉后缀即原图
+function stripWpScaled (u) {
+  return u.replace(/-scaled(\.[A-Za-z0-9]+)(\?.*)?$/i, '$1')
+}
+
 // 从文章正文 HTML 里抠出图片直链（过滤主题/头像/表情等噪声）
 function extractImgUrls (html) {
   if (typeof html !== 'string' || !html) return []
@@ -269,14 +295,14 @@ async function cachedMaxPage (key, loader) {
 function makeWpPostSource (opt) {
   const {
     key, name, bases, catsSfw = [], catsR18 = [], excludeCats = [], titleBlock = null,
-    referer = '', gapMs = DL_GAP_MS,
+    referer = '', gapMs = DL_GAP_MS, imgUpgrade = null,
     perPage = 5, useFields = true, enable = true, unfilteredWhenR18 = false
   } = opt
 
   const excludeQs = excludeCats.length ? `categories_exclude=${excludeCats.join(',')}&` : ''
 
   return {
-    key, name, referer, gapMs, enable,
+    key, name, referer, gapMs, imgUpgrade, enable,
 
     // 两档互斥：r18=false 只用非 R18 分类；r18=true 只用 R18 分类，不掺 cosplay
     cats (r18) {
@@ -422,6 +448,7 @@ const srcCoserlab = makeWpPostSource({
   catsSfw: CL_CATEGORIES,
   referer: CL_REFERER,
   gapMs: CL_GAP,
+  imgUpgrade: u => (CL_FULL_SIZE ? stripWpScaled(u) : u),
   perPage: CL_POSTS_PER_PAGE,
   useFields: true,
   enable: CL_ENABLE
@@ -497,6 +524,7 @@ const src4khd = makeWpPostSource({
   catsR18: KHD_CATEGORIES_R18,
   referer: KHD_REFERER,
   gapMs: KHD_GAP,
+  imgUpgrade: u => rewriteGoogleSize(u, KHD_IMG_SIZE),
   perPage: KHD_POSTS_PER_PAGE,
   useFields: false,
   enable: KHD_ENABLE
@@ -514,6 +542,7 @@ const src4kup = makeWpPostSource({
   titleBlock: /\bAI\b|AIGirl|AIgirls|AIPD|AI\s*Generated|AI\s*girls|AI\s*Enhanced/,
   referer: KUP_REFERER,
   gapMs: KUP_GAP,
+  imgUpgrade: u => rewriteGoogleSize(u, KUP_IMG_SIZE),
   perPage: KUP_POSTS_PER_PAGE,
   useFields: true,
   enable: KUP_ENABLE
@@ -723,7 +752,7 @@ async function toBase64DataURL (sharpLib, arrBuf) {
 
 // 从候选队列里一张张取，直到凑够 want 张或队列耗尽。
 // 死链（404/410）静默跳过继续换下一张；限流/超时则记下来，后面发链接。
-async function collectImages (queue, want, referer, gapMs, sharpLib) {
+async function collectImages (queue, want, referer, gapMs, sharpLib, upgrade = null) {
   const refs = []
   const linkFails = []
   let dropped = 0
@@ -732,20 +761,35 @@ async function collectImages (queue, want, referer, gapMs, sharpLib) {
   let limited = 0       // 连续被限流计数
 
   while (refs.length < want && queue.length && tried < REFILL_BUDGET) {
-    const u = queue.shift()
+    const raw = queue.shift()
     tried++
 
+    // 站点正文给的常是缩略图，先试改写后的大图，挂了再退回原链接
+    const big = upgrade ? upgrade(raw) : raw
+    const tryUrls = big !== raw ? [big, raw] : [raw]
+
+    let u = raw
     let ref = null
     let why = ''
     let status = 0
-    try {
-      const arr = await fetchArrayBuffer(u, referer)
-      ref = await toBase64DataURL(sharpLib, arr)
-      if (!ref) why = '解码/压缩失败'
-    } catch (err) {
-      why = describeErr(err)
-      status = Number(err?.status) || 0
-      Bot?.logger?.warn?.(`[woc] 拉取失败（${why}）：${u}`)
+    for (let k = 0; k < tryUrls.length; k++) {
+      u = tryUrls[k]
+      why = ''
+      status = 0
+      try {
+        const arr = await fetchArrayBuffer(u, referer)
+        ref = await toBase64DataURL(sharpLib, arr)
+        if (!ref) why = '解码/压缩失败'
+      } catch (err) {
+        why = describeErr(err)
+        status = Number(err?.status) || 0
+      }
+      if (ref) break
+      if (k < tryUrls.length - 1) {
+        Bot?.logger?.warn?.(`[woc] 大图取失败（${why}），退回原尺寸：${raw}`)
+      } else {
+        Bot?.logger?.warn?.(`[woc] 拉取失败（${why}）：${u}`)
+      }
     }
 
     if (ref) {
@@ -900,7 +944,8 @@ export class example extends plugin {
           })))
         } catch {}
 
-        const got = await collectImages(queue, MAX_TOTAL, referer, gapMs, sharpLib)
+        const upgrade = ALL_SOURCES.find(x => x.key === pool.key)?.imgUpgrade || null
+        const got = await collectImages(queue, MAX_TOTAL, referer, gapMs, sharpLib, upgrade)
         refs = got.refs
         linkFails = got.linkFails
         dropped += got.dropped

@@ -58,6 +58,10 @@ woc:
   DEAD_STREAK: 5                 # 连续几张死链就判定整组已被删，立刻换组（图集是整套传的，不必把几十张全试一遍）
   LIMIT_STREAK: 3                # 连续几张被限流(429)才放弃；单张 429 不代表下一张也拿不到
   BYPASS_PHOTON: true            # i*.wp.com 代理对个别图永久返回 429（换节点/等待都没用），还原成源站直链
+  # ---- 取大图：站点正文里常年给的是缩略图，sharp 拿缩略图放大没有意义 ----
+  KUP_IMG_SIZE: s0               # 4kup 正文是 400x600 缩略图，s0=原图 1067x1600
+  KHD_IMG_SIZE: s0               # 4khd 正文是 w1300，s0=原图 1920x2560（注意 s1600 反而更小）
+  COSERLAB_FULL_SIZE: true       # coserlab 去掉 -scaled 取原图（1440x2560 → 2160x3840）
   FAIL_LINK_ONLY_WHEN_EMPTY: true # 只有一张图都没发出时才发降级链接；已发满就不再刷屏
   DROP_DEAD_IMAGES: true         # 404/410 这类死链直接剔除，不再降级发链接（链接点开也是 404）
   DEAD_STATUS: [404, 410]        # 视为「永久失效」的状态码；429/超时不算，那些 URL 还是活的
