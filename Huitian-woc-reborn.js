@@ -1,6 +1,7 @@
 import plugin from '../../lib/plugins/plugin.js'
 import sharp from 'sharp' 
 import Config from './config/config.js'
+import { senderOf } from './utils/botcompat.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('woc')
@@ -972,8 +973,9 @@ export class example extends plugin {
       Bot?.logger?.warn?.(`[woc] 图源 ${pool.source}，本批图片域名：` + hosts.join(', '))
       await e.reply(`本小姐共找来 ${refs.length} 张（将分批发送）`)
 
-      const uin  = String(e.member?.user_id ?? Bot.uin)
-      const name = e.member?.nickname ?? (Bot.nickname || 'Yunzai')
+      const sender = senderOf(e)
+      const uin  = String(sender.uin)
+      const name = sender.nickname || 'Yunzai'
       const batchCount = Math.ceil(refs.length / BATCH_SIZE)
 
       for (let i = 0; i < refs.length; i += BATCH_SIZE) {

@@ -3,6 +3,7 @@ import fetch from 'node-fetch'
 import http from 'http'
 import https from 'https'
 import Config from './config/config.js'
+import { senderOf } from './utils/botcompat.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('xjj')
@@ -265,8 +266,9 @@ export class xjjUltimate extends plugin {
     await e.reply(`本小姐正在挑选 ${result.urls.length} 张 [${result.name}] 美图...`)
 
     const seg = await getSegment()
-    const uin = e.member?.user_id ?? Bot.uin
-    const nick = e.member?.nickname ?? Bot.nickname
+    const sender = senderOf(e)
+    const uin = sender.uin
+    const nick = sender.nickname
     const title = `${nick} ｜ ${result.name} 精选`
 
     for (let i = 0; i < result.urls.length; i += BATCH_SIZE) {
@@ -346,7 +348,7 @@ export class xjjUltimate extends plugin {
 
     try {
       const replyMsg = []
-      if (targetApi.title) replyMsg.push(`������ ${targetApi.title.trim()}\n`)
+      if (targetApi.title) replyMsg.push(`🎬 ${targetApi.title.trim()}\n`)
       replyMsg.push(seg.video(targetApi.url))
       await e.reply(replyMsg)
     } catch (err) {

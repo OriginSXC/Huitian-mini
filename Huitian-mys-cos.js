@@ -3,6 +3,7 @@ import schedule from 'node-schedule'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
 import Config from './config/config.js'
+import { senderOf, normalizeId } from './utils/botcompat.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('mys_cos')
@@ -55,9 +56,11 @@ async function loadSharp() {
 function arrClean(a) { return (Array.isArray(a) ? a : [a]).filter(v => v !== undefined && v !== null) }
 
 function getCtxByType(type, id) {
-  if (type === 'group') return Bot.pickGroup(Number(id))
-  if (typeof Bot.pickFriend === 'function') return Bot.pickFriend(Number(id))
-  return Bot.pickUser(Number(id))
+  // TRSS 下会话 id 不一定是数字（KOOK / QQ频道 / Telegram），不能硬 Number()
+  const key = normalizeId(id)
+  if (type === 'group') return Bot.pickGroup(key)
+  if (typeof Bot.pickFriend === 'function') return Bot.pickFriend(key)
+  return Bot.pickUser(key)
 }
 
 function parseModeFromMsg(msg, fallback = SEND_MODE_DEFAULT) {
@@ -299,8 +302,10 @@ async function runOnceSend(eOrCtx, which = 'cmd', sendMode = SEND_MODE_DEFAULT) 
     return
   }
 
-  const uin  = String(eOrCtx?.member?.user_id ?? Bot.uin)
-  const name = eOrCtx?.member?.nickname ?? (Bot.nickname || 'Yunzai')
+  // 定时推送时 ctx 没有 member，不能退到 Bot.uin（TRSS 下是数组，String 后成逗号串）
+  const sender = senderOf(eOrCtx)
+  const uin  = String(sender.uin)
+  const name = sender.nickname || 'Yunzai'
 
   const batchCount = Math.ceil(urlsAll.length / BATCH_SIZE)
   for (let i = 0; i < urlsAll.length; i += BATCH_SIZE) {
