@@ -55,10 +55,12 @@ woc:
   DOWNLOAD_GAP_MS: 250           # 图间隔全局默认；各源可用下面的 *_DOWNLOAD_GAP_MS 单独覆盖
   REFILL_BUDGET: 40              # 单次 #woc 最多下载尝试次数——死链会一直换下一张，这是安全上限
   GROUP_RETRY: 2                 # 整组图全是死链时，最多再换几组（换组才可能真出图）
+  POOL_REBUILD: 2                # 整池的组都失效后，最多自动重新抓几次新池（不用用户再发一次）
   DEAD_STREAK: 5                 # 连续几张死链就判定整组已被删，立刻换组（图集是整套传的，不必把几十张全试一遍）
   LIMIT_STREAK: 3                # 连续几张被限流(429)才放弃；单张 429 不代表下一张也拿不到
   BYPASS_PHOTON: true            # i*.wp.com 代理对个别图永久返回 429（换节点/等待都没用），还原成源站直链
   # ---- 取大图：站点正文里常年给的是缩略图，sharp 拿缩略图放大没有意义 ----
+  KUP_MAX_AGE_DAYS: 420          # 4kup 帖子超过这么多天，Blogger 图已被清（实测 2025-01 前全 404）；0=不限
   KUP_IMG_SIZE: s0               # 4kup 正文是 400x600 缩略图，s0=原图 1067x1600
   KHD_IMG_SIZE: s0               # 4khd 正文是 w1300，s0=原图 1920x2560（注意 s1600 反而更小）
   COSERLAB_FULL_SIZE: true       # coserlab 去掉 -scaled 取原图（1440x2560 → 2160x3840）

@@ -21,9 +21,11 @@ const DL_RETRY_DELAY      = numOr(cfg.DOWNLOAD_RETRY_DELAY_MS, 1000) // 重试�
 const DL_GAP_MS           = numOr(cfg.DOWNLOAD_GAP_MS, 250)        // 图间隔全局默认，各源可用 *_DOWNLOAD_GAP_MS 覆盖
 const REFILL_BUDGET       = numOr(cfg.REFILL_BUDGET, 40)           // 单次 #woc 最多下载尝试次数（死链一直换图的安全上限）
 const GROUP_RETRY         = numOr(cfg.GROUP_RETRY, 2)              // 整组全死链时，最多再换几组
+const POOL_REBUILD       = numOr(cfg.POOL_REBUILD, 2)             // 整池死光后，最多重新抓几次新池
 const DEAD_STREAK         = numOr(cfg.DEAD_STREAK, 5)              // 连续几张死链就判定整组已失效，立刻放弃该组
 const LIMIT_STREAK        = numOr(cfg.LIMIT_STREAK, 3)             // 连续几张被限流才放弃；单张 429 不代表整站都拿不到
 const BYPASS_PHOTON       = cfg.BYPASS_PHOTON ?? true               // 把 i*.wp.com 代理链接还原成源站直链
+const KUP_MAX_AGE_DAYS    = numOr(cfg.KUP_MAX_AGE_DAYS, 420)       // 4kup 过老的帖子图已被 Blogger 删光（实测 2025-01 前全 404），超龄直接不要；0=不限
 const KUP_IMG_SIZE        = String(cfg.KUP_IMG_SIZE ?? 's0')        // 4kup 正文里是 400px 缩略图，s0=原图
 const KHD_IMG_SIZE        = String(cfg.KHD_IMG_SIZE ?? 's0')        // 4khd 默认 w1300，s0=原图（注意 s1600 反而更小）
 const CL_FULL_SIZE        = cfg.COSERLAB_FULL_SIZE ?? true          // coserlab 去掉 -scaled 取原图
@@ -297,7 +299,7 @@ function makeWpPostSource (opt) {
   const {
     key, name, bases, catsSfw = [], catsR18 = [], excludeCats = [], titleBlock = null,
     referer = '', gapMs = DL_GAP_MS, imgUpgrade = null,
-    perPage = 5, useFields = true, enable = true, unfilteredWhenR18 = false
+    perPage = 5, useFields = true, enable = true, unfilteredWhenR18 = false, maxAgeDays = 0
   } = opt
 
   const excludeQs = excludeCats.length ? `categories_exclude=${excludeCats.join(',')}&` : ''
@@ -353,7 +355,7 @@ function makeWpPostSource (opt) {
 
     async page (p, cat) {
       // 注意：4khd 的 WAF 会拦截带 content 的 _fields，所以 useFields=false 时整个不带
-      const fields = useFields ? '&_fields=id,title,content' : ''
+      const fields = useFields ? '&_fields=id,title,content,date' : ''
       const { json: posts } = await this.tryBases(
         `posts?${this.catQs(cat)}per_page=${perPage}&page=${p}${fields}`
       )
@@ -361,14 +363,21 @@ function makeWpPostSource (opt) {
 
       const groups = []
       let blocked = 0
+      let stale = 0
       for (const post of posts) {
         // 兜一层标题过滤：接口分类没标全的 AI 图在这里再拦一次
         const title = String(post?.title?.rendered || '')
         if (titleBlock && titleBlock.test(title)) { blocked++; continue }
+        // 图床上的旧图会被整批清掉：发布时间超龄的帖子直接不要（date 缺失则放行）
+        if (maxAgeDays > 0 && post?.date) {
+          const age = (Date.now() - new Date(post.date + 'Z').getTime()) / 86400000
+          if (age > maxAgeDays + 1) { stale++; continue }
+        }
         const urls = extractImgUrls(post?.content?.rendered)
         if (urls.length) groups.push(urls)
       }
       if (blocked) Bot?.logger?.mark?.(`[woc] ${name} 本页按标题拦掉 ${blocked} 篇`)
+      if (stale) Bot?.logger?.mark?.(`[woc] ${name} 本页按发布时间剔除 ${stale} 篇过老帖子`)
       const tag = cat != null ? ` 分类 ${cat}` : ''
       if (groups.length === 0) throw new Error(`${name}${tag} 第 ${p} 页没抠到图片`)
 
@@ -546,6 +555,7 @@ const src4kup = makeWpPostSource({
   imgUpgrade: u => rewriteGoogleSize(u, KUP_IMG_SIZE),
   perPage: KUP_POSTS_PER_PAGE,
   useFields: true,
+  maxAgeDays: KUP_MAX_AGE_DAYS,
   enable: KUP_ENABLE
 })
 
@@ -624,13 +634,19 @@ async function fetchFromSource (src, r18) {
   const cats = typeof src.cats === 'function' ? src.cats(r18) : []
   const cat  = cats.length ? pickOne(cats) : null
   const maxPage = await src.maxPage(cat)
-  const p = randInt(maxPage)
-  try {
-    return await src.page(p, cat)
-  } catch (err) {
-    Bot?.logger?.warn?.(`[woc] ${src.name} 第 ${p} 页失败，降级抓第 1 页：` + (err?.message || err))
-    return await src.page(1, cat)
+  // 随机页可能落在已被清图的老区（整页被剔除），先换几个随机页，再退到第 1 页
+  let lastErr = null
+  for (let i = 0; i < 3; i++) {
+    const p = randInt(maxPage)
+    try {
+      return await src.page(p, cat)
+    } catch (err) {
+      lastErr = err
+      Bot?.logger?.warn?.(`[woc] ${src.name} 第 ${p} 页失败：` + (err?.message || err))
+    }
   }
+  Bot?.logger?.warn?.(`[woc] ${src.name} 随机页连续失败，降级抓第 1 页：` + (lastErr?.message || lastErr))
+  return await src.page(1, cat)
 }
 
 // 随机挑一个源开抓，挂了就换下一个，返回 { source, referer, r18, groups }
@@ -830,11 +846,19 @@ async function collectImages (queue, want, referer, gapMs, sharpLib, upgrade = n
   return { refs, linkFails, dropped, tried }
 }
 
+// 适配器有时不抛错但也没真发出去（返回空 / status=failed）：当成失败，交给上层重试/降级
+function assertSent (res, how) {
+  const bad = res == null || res === false || res?.status === 'failed' || (res?.retcode != null && res.retcode !== 0)
+  if (bad) throw new Error(`${how} 无有效回执：${JSON.stringify(res)?.slice(0, 200)}`)
+  Bot?.logger?.mark?.(`[woc] ${how} 回执：${JSON.stringify(res)?.slice(0, 160)}`)
+  return res
+}
+
 async function sendForward (e, ctx, nodesOB, nodesIcqq) {
   if (PREFER_ICQQ_FORWARD && typeof ctx.makeForwardMsg === 'function') {
     const msg = await ctx.makeForwardMsg(nodesIcqq)
-    if (typeof ctx.sendMsg === 'function') return await ctx.sendMsg(msg)
-    return await e.reply(msg)
+    if (typeof ctx.sendMsg === 'function') return assertSent(await ctx.sendMsg(msg), 'makeForwardMsg')
+    return assertSent(await e.reply(msg), 'makeForwardMsg')
   }
   if (Array.isArray(nodesOB) && nodesOB.length > 0 && typeof ctx.sendForwardMsg === 'function') {
     return await ctx.sendForwardMsg(nodesOB)
@@ -910,9 +934,9 @@ export class example extends plugin {
         }
       }
 
-      const referer   = pool.referer || ''
-      const gapMs     = numOr(pool.gapMs, DL_GAP_MS)   // 各源图床脾气不同，间隔按源走
-      const pickOrder = pool.r18 ? R18_PICK_ORDER : PICK_ORDER
+      let referer     = pool.referer || ''
+      let gapMs       = numOr(pool.gapMs, DL_GAP_MS)   // 各源图床脾气不同，间隔按源走
+      let pickOrder   = pool.r18 ? R18_PICK_ORDER : PICK_ORDER
 
       const ctx = e.group || e.friend
       if (!ctx) return e.reply('不支持的会话类型')
@@ -925,8 +949,23 @@ export class example extends plugin {
       let dropped = 0
       let hosts = []
 
-      for (let round = 0; round <= GROUP_RETRY; round++) {
-        const group = pool.groups.shift()
+      let rebuilt = 0
+      for (let round = 0; round <= GROUP_RETRY + POOL_REBUILD * 3; round++) {
+        let group = pool.groups.shift()
+        // 池里的组都死光了：换个页/源重新抓一池再试，别让用户自己再发一次
+        if (!group && dropped > 0 && rebuilt < POOL_REBUILD) {
+          rebuilt++
+          Bot?.logger?.warn?.(`[woc] 当前池全部失效，重新抓取新池（第 ${rebuilt} 次）`)
+          try {
+            pool = await buildPool(r18)
+            referer   = pool.referer || ''
+            gapMs     = numOr(pool.gapMs, DL_GAP_MS)
+            pickOrder = pool.r18 ? R18_PICK_ORDER : PICK_ORDER
+            group = pool.groups.shift()
+          } catch (err) {
+            Bot?.logger?.warn?.('[woc] 重建池失败：' + (err?.message || err))
+          }
+        }
         await savePool(pool)
         if (!group) break
 
@@ -954,7 +993,7 @@ export class example extends plugin {
         if (refs.length > 0) break
 
         // 一张都没凑出来：如果是整组死链且池里还有下一组，换组再来
-        if (got.dropped > 0 && pool.groups.length > 0) {
+        if (got.dropped > 0 && (pool.groups.length > 0 || rebuilt < POOL_REBUILD)) {
           Bot?.logger?.warn?.(`[woc] 整组 ${got.dropped} 张全失效，换下一组重试（第 ${round + 1} 轮）`)
           continue
         }
