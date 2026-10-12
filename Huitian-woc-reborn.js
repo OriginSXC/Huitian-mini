@@ -208,6 +208,15 @@ function shuffleArr (arr) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
+// 日志用：Error 取 stack；NapCat/OneBot 抛的是响应对象（{status,retcode,wording}），直接拼接会变成 [object Object]
+function errText (err) {
+  if (err instanceof Error) return err.stack || err.message
+  if (err && typeof err === 'object') {
+    try { return JSON.stringify(err) } catch { return Object.prototype.toString.call(err) }
+  }
+  return String(err)
+}
+
 // 把各种失败翻译成人话，用于日志和降级提示
 function describeErr (err) {
   if (err?.status === 429) return 'HTTP 429 限流'
@@ -929,7 +938,7 @@ export class example extends plugin {
         try {
           pool = await buildPool(r18)
         } catch (err) {
-          Bot?.logger?.error?.('[woc] 所有图源均失败: ' + (err?.stack || err))
+          Bot?.logger?.error?.('[woc] 所有图源均失败: ' + errText(err))
           return e.reply('本小姐没有可用的资源，稍后再试~')
         }
       }
@@ -1028,13 +1037,13 @@ export class example extends plugin {
           await sendForward(e, ctx, nodesOB, nodesIcqq)
           sent = true
         } catch (err) {
-          Bot?.logger?.warn?.('本小姐合并转发失败，准备重试：' + (err?.message || err))
+          Bot?.logger?.warn?.('本小姐合并转发失败，准备重试：' + errText(err))
           await sleep(1200)
           try {
             await sendForward(e, ctx, nodesOB, nodesIcqq)
             sent = true
           } catch (err2) {
-            Bot?.logger?.error?.('本小姐重试仍失败，降级为逐条图。')
+            Bot?.logger?.error?.('本小姐重试仍失败，降级为逐条图：' + errText(err2))
             for (const n of nodesOB) {
               if (typeof ctx.sendMsg === 'function') await ctx.sendMsg(n.data.content)
               else await e.reply(n.data.content)
@@ -1064,7 +1073,7 @@ export class example extends plugin {
         Bot?.logger?.mark?.(`[woc] 本次剔除 ${dropped} 张死链，实发 ${refs.length} 张`)
       }
     } catch (err) {
-      Bot?.logger?.error?.('[woc] 发送失败: ' + (err?.stack || err))
+      Bot?.logger?.error?.('[woc] 发送失败: ' + errText(err))
       await e.reply('本小姐被风控/超时绊了一跤，等会儿再来~')
     }
   }
