@@ -48,6 +48,7 @@ function isKnownImageFormat(imageUrl, date) {
  */
 function buildImageUrls(date) {
   return [
+    `https://raw.githubusercontent.com/vikiboss/60s-static-host/main/static/images/${date}.png`,
     `https://60s-static.viki.moe/images/${date}.png`,
     `https://cdn.jsdelivr.net/gh/vikiboss/60s-static-host@main/static/images/${date}.png`,
     `https://cdn.jsdmirror.com/gh/vikiboss/60s-static-host@main/static/images/${date}.png`,
@@ -88,7 +89,7 @@ async function pushNews(e, isAuto = 0) {
   }
   let imgUrl, res, timeStr, originalImage
   try {
-    const url = await fetch('https://60s-api-cf.viki.moe/v2/60s').catch(err => logger.error(err))
+    const url = await fetch('https://60s.crystelf.top/v2/60s').catch(err => logger.error(err))
     imgUrl = await url.json()
     originalImage = imgUrl.data.image
     timeStr = imgUrl.data.date

@@ -43,12 +43,20 @@ async function pushNews(e, isAuto = 0) {
     logger.info('[用户命令]', e.msg)
   }
 
-  let url = await fetch('https://api.zxki.cn/api/myrl?type=json').catch(err => logger.error(err))
-  let imgUrl = await url.json()
-  const res = await imgUrl.data.url
+  let res
+  try {
+    const r = await fetch('https://api.zxki.cn/api/myrl?type=json')
+    const j = await r.json()
+    // 接口现在把 url 放顶层，旧版放在 data.url，两种都兼容
+    res = j?.url || j?.data?.url
+  } catch (err) {
+    logger.error(`[摸鱼人日历] 接口请求失败: ${err.message}`)
+  }
 
   if (!res) {
-    logger.error('[摸鱼人日历] 接口请求失败')
+    logger.error('[摸鱼人日历] 未拿到图片地址')
+    if (!isAuto) e.reply('获取摸鱼日历失败,请稍后再试。')
+    return
   }
 
   if (isAuto) {
