@@ -31,7 +31,7 @@
 | 摸鱼日历 | `#摸鱼日历` | ✅（默认 09:00） | `node-fetch` `node-schedule` | 拉取摸鱼人日历并推送 |
 | 米游社 COS（reborn） | `#cos` / `mys cos`（可加 `ob/icqq/auto/plain`） | ✅（默认 12:08:30） | `node-fetch` `node-schedule` `sharp` | 随机抓取米游社贴子图片，分批合并转发 |
 | WOC 抓图（reborn） | `#woc` / `#卧槽` | ❌ | `sharp` | 多站 WP 接口抓图 → 强制 Base64 → 分批合并转发（优先 icqq）；随机选源、死链自动换图、可选 R18 分档 |
-| XJJ 极速增强版 | `#xjj` / `#黑丝`；视频：`#xjjpro` / `#jk视频` 等 | ❌ | `node-fetch` `sharp` | 多接口聚合，支持全量中英文别名分类（JK/黑丝/网红/变装等），内置防缓存与过滤排错机制 |
+| XJJ 极速增强版 | `#xjj` / `#黑丝`；视频：`#xjjpro` / `#jk视频` 等 | ❌ | `node-fetch` `sharp` | 多接口聚合，支持中英文别名分类（JK/黑丝/美腿/变装/网红系列等）；图源失败自动换源并冷却、视频死链自动换条、同群防并发刷屏 |
 
 ---
 

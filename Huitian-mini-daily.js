@@ -1,17 +1,33 @@
 import plugin from '../../lib/plugins/plugin.js'
-import common from '../../lib/common/common.js'
 import fetch from 'node-fetch'
-import schedule from 'node-schedule'
-import { segment } from 'oicq'
 import Config from './config/config.js'
+import { normalizeId } from './utils/botcompat.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('daily')
-const time = cfg.time || '0 30 9 * * ?'
+const time = cfg.time || '0 30 9 * * *'
 const groupList = cfg.groupList || []
 const isAutoPush = cfg.isAutoPush ?? true
 
-autoTask()
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+async function getSegment() {
+  if (global.segment) return global.segment
+  return (await import('oicq')).segment
+}
+
+// 带超时的 JSON 请求
+async function fetchJson(url, timeoutMs = 10000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const r = await fetch(url, { signal: controller.signal })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return await r.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export class example extends plugin {
   constructor() {
@@ -27,9 +43,15 @@ export class example extends plugin {
         }
       ]
     })
+    // 交给框架调度：插件类处理每条消息都会 new 一次，热更新也会重新 import，
+    // 自己 scheduleJob 会重复挂任务
+    this.task = (isAutoPush && groupList.length)
+      ? { name: '回天mini-今日早报推送', cron: time, fnc: () => autoPush() }
+      : []
   }
   async news(e) {
-    pushNews(e)
+    await pushNews(e)
+    return true
   }
 }
 
@@ -51,8 +73,7 @@ function buildImageUrls(date) {
     `https://raw.githubusercontent.com/vikiboss/60s-static-host/main/static/images/${date}.png`,
     `https://60s-static.viki.moe/images/${date}.png`,
     `https://cdn.jsdelivr.net/gh/vikiboss/60s-static-host@main/static/images/${date}.png`,
-    `https://cdn.jsdmirror.com/gh/vikiboss/60s-static-host@main/static/images/${date}.png`,
-    `https://raw.githubusercontent.com/vikiboss/60s-static-host/main/static/images/${date}.png`
+    `https://cdn.jsdmirror.com/gh/vikiboss/60s-static-host@main/static/images/${date}.png`
   ]
 }
 
@@ -89,13 +110,13 @@ async function pushNews(e, isAuto = 0) {
   }
   let imgUrl, res, timeStr, originalImage
   try {
-    const url = await fetch('https://60s.crystelf.top/v2/60s').catch(err => logger.error(err))
-    imgUrl = await url.json()
-    originalImage = imgUrl.data.image
-    timeStr = imgUrl.data.date
+    imgUrl = await fetchJson('https://60s.crystelf.top/v2/60s')
+    originalImage = imgUrl?.data?.image
+    timeStr = imgUrl?.data?.date
 
     if (!originalImage) {
       logger.error('[每日新闻] 接口请求失败')
+      if (!isAuto) e.reply('获取早报失败:接口没有返回图片,请稍后再试。')
       return
     }
 
@@ -127,45 +148,48 @@ async function pushNews(e, isAuto = 0) {
       res = originalImage
     }
   } catch (ex) {
+    logger.error(`[每日新闻] 接口请求失败: ${ex?.message || ex}`)
     if (!isAuto) {
-      e.reply(`获取早报失败:${ex}`)
+      e.reply('获取早报失败:接口暂时连不上,请稍后再试。')
     }
     return
   }
 
   // ③ 走到这里 res 一定是有效的图片 URL
-  if (isAuto) {
-    e.sendMsg(segment.image(res))
-  } else {
-    e.reply(segment.image(res))
+  try {
+    const segment = await getSegment()
+    if (isAuto) {
+      await e.sendMsg(segment.image(res))
+    } else {
+      await e.reply(segment.image(res))
+    }
+  } catch (err) {
+    logger.error(`[每日新闻] 发送失败: ${err?.message || JSON.stringify(err)}`)
   }
 }
 
 /**
- * 定时任务
+ * 定时推送
  */
-function autoTask() {
-  if (isAutoPush) {
-    schedule.scheduleJob(time, () => {
-      logger.info('[每日新闻]:开始自动推送...')
-      for (let i = 0; i < groupList.length; i++) {
-        let group = Bot.pickGroup(groupList[i])
-        pushNews(group, 1)
-        common.sleep(1000)
-      }
-    })
+async function autoPush() {
+  logger.info('[每日新闻]开始自动推送...')
+  for (const gid of groupList) {
+    const group = Bot.pickGroup(normalizeId(gid))
+    if (!group) {
+      logger.warn(`[每日新闻]无法获取群 ${gid}`)
+      continue
+    }
+    await pushNews(group, 1)
+    await sleep(1000)
   }
 }
 
 /**
  * 判断给定日期字符串是否为今天
  */
+// 按本地日期比字符串：new Date('YYYY-MM-DD') 是 UTC 零点，西半球时区会差一天
 const isToday = dateString => {
-  const today = new Date()
-  const date = new Date(dateString)
-  return (
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear()
-  )
+  const d = new Date()
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return String(dateString || '').slice(0, 10) === today
 }
