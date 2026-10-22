@@ -94,7 +94,7 @@ woc:
   # 候选图源清单，删掉某个 key 即等于不用它
   # mikagogo 暂时摘掉：它正文常抠不到图，要退回媒体库取封面，一组里 5 张会来自不同文章、不成套。
   # 想恢复就把 mikagogo 加回列表（两个 yaml 都要改，见下方说明）
-  SOURCE_ORDER: [main, coserlab, 4khd, 4kup, bestgirlsexy]
+  SOURCE_ORDER: [main, coserlab, 4khd, 4kup]
   # random = 每次随机挑一个源（默认），挂了再随机换下一个；order = 按上面的顺序依次试
   SOURCE_PICK: random
   # 某个源抓挂后冷却多少秒：冷却期内不是被丢掉，而是排到最后，全挂时还能兜住。0 = 不冷却
@@ -145,17 +145,6 @@ woc:
   KUP_POSTS_PER_PAGE: 3
   KUP_DOWNLOAD_GAP_MS: 250       # blogger.googleusercontent.com 不限流
 
-  # ---- bestgirlsexy（源站当前 523 打不开，默认关）----
-  # 站点恢复后，把 cosplay 分类 ID 填进 BGS_CATEGORIES，它就和 4khd 一样不受 R18 限制。
-  BGS_ENABLE: false
-  BGS_BASES:
-    - https://bestgirlsexy.com/wp-json/wp/v2
-  BGS_CATEGORIES: []             # 非 R18 档：cosplay 分类 ID（站点打不开，暂时摸不到）
-  BGS_CATEGORIES_R18: []         # R18 档
-  BGS_UNFILTERED_WHEN_R18: true  # R18 开且上面两个都为空时，不带分类直接抓
-  BGS_REFERER: https://bestgirlsexy.com/
-  BGS_POSTS_PER_PAGE: 3
-  BGS_DOWNLOAD_GAP_MS: 250
 
 # 小姐姐图片配置
 xjj:

@@ -44,7 +44,7 @@ const PICK_ORDER          = String(cfg.PICK_ORDER ?? 'random').toLowerCase()
 
 const SOURCE_ORDER        = (Array.isArray(cfg.SOURCE_ORDER) && cfg.SOURCE_ORDER.length)
                               ? cfg.SOURCE_ORDER.map(String)
-                              : ['main', 'coserlab', 'mikagogo', '4khd', '4kup', 'bestgirlsexy']
+                              : ['main', 'coserlab', 'mikagogo', '4khd', '4kup']
 const SOURCE_RANDOM       = String(cfg.SOURCE_PICK ?? 'random').toLowerCase() !== 'order'
 const FAIL_COOLDOWN       = numOr(cfg.SOURCE_FAIL_COOLDOWN, 600)  // 某个源抓挂后冷却秒数，期间排到最后再试
 
@@ -93,15 +93,6 @@ const KUP_REFERER         = cfg.KUP_REFERER || 'https://4kup.net/'
 const KUP_POSTS_PER_PAGE  = cfg.KUP_POSTS_PER_PAGE || 3
 const KUP_GAP             = numOr(cfg.KUP_DOWNLOAD_GAP_MS, DL_GAP_MS)
 
-// ---- bestgirlsexy（R18）----
-const BGS_ENABLE          = cfg.BGS_ENABLE ?? false                      // 源站当前 523 不可用，默认关
-const BGS_BASES           = arrOr(cfg.BGS_BASES, ['https://bestgirlsexy.com/wp-json/wp/v2'])
-const BGS_CATEGORIES      = listOr(cfg.BGS_CATEGORIES, [])               // 非 R18 档：cosplay 分类 ID（站点不可用，待补）
-const BGS_CATEGORIES_R18  = listOr(cfg.BGS_CATEGORIES_R18, [])           // R18 档
-const BGS_UNFILTERED_R18  = cfg.BGS_UNFILTERED_WHEN_R18 ?? true          // R18 开且上面都为空时，不带分类直接抓
-const BGS_REFERER         = cfg.BGS_REFERER || 'https://bestgirlsexy.com/'
-const BGS_POSTS_PER_PAGE  = cfg.BGS_POSTS_PER_PAGE || 3
-const BGS_GAP             = numOr(cfg.BGS_DOWNLOAD_GAP_MS, DL_GAP_MS)
 // ===================================================
 
 const PIC_KEY = 'ys:woc:pic'
@@ -303,7 +294,7 @@ async function cachedMaxPage (key, loader) {
 }
 
 // ===================== 图源工厂：WP 文章正文抠图 =====================
-// 适用于「一篇文章内嵌整套图集」的站（coserlab / 4khd / bestgirlsexy）
+// 适用于「一篇文章内嵌整套图集」的站（coserlab / 4khd / 4kup）
 function makeWpPostSource (opt) {
   const {
     key, name, bases, catsSfw = [], catsR18 = [], excludeCats = [], titleBlock = null,
@@ -568,24 +559,8 @@ const src4kup = makeWpPostSource({
   enable: KUP_ENABLE
 })
 
-// ===================== 图源⑥：bestgirlsexy =====================
-// 源站当前 523 打不开，分类 ID 摸不到：BGS_CATEGORIES 填上 cosplay 的 ID 后，
-// 它就和 4khd 一样不受 R18 开关限制；不填则只有 R18 打开时才会不带分类去抓。
-const srcBestgirlsexy = makeWpPostSource({
-  key: 'bestgirlsexy',
-  name: 'bestgirlsexy',
-  bases: BGS_BASES,
-  catsSfw: BGS_CATEGORIES,
-  catsR18: BGS_CATEGORIES_R18,
-  referer: BGS_REFERER,
-  gapMs: BGS_GAP,
-  perPage: BGS_POSTS_PER_PAGE,
-  useFields: true,
-  enable: BGS_ENABLE,
-  unfilteredWhenR18: BGS_UNFILTERED_R18
-})
 
-const ALL_SOURCES = [srcShaonvzhi, srcCoserlab, srcMikagogo, src4khd, src4kup, srcBestgirlsexy]
+const ALL_SOURCES = [srcShaonvzhi, srcCoserlab, srcMikagogo, src4khd, src4kup]
 
 // 按 yaml 里的 SOURCE_ORDER 排序，并过滤掉禁用 / R18 关闭时的 r18 源
 // 候选图源：SOURCE_ORDER 里列了、没被禁用、且这一档有分类可用的
