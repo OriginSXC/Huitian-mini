@@ -165,3 +165,100 @@ xjj:
   SOURCE_COOLDOWN_MIN: 10        # 图源失败后冷却分钟数（连续失败翻倍，最长 6 小时），冷却中的只在其它图源全挂时兜底
   VIDEO_MAX_TRIES: 4             # 视频遇到死链时最多换几条
 
+
+xjj_r18:
+  CMD_PREFIX: 'r18xjj'   # 主命令前缀：#r18xjj（图片）、#r18xjjpro（视频）
+  ENABLE: true
+  PRIVATE_ONLY: true        # true：只在私聊开放；false：群聊也放
+  GROUP_SILENT: true         # true：群里完全静默不接话（默认关闭）；false：群里回一句提示
+  BASE_URL: 'https://www.fantasyfactory.xyz'
+
+  IMG_COUNT_MIN: 3
+  IMG_COUNT_MAX: 6
+  BATCH_SIZE: 4             # 每批合并转发条数，同时也是下载并发
+  DELAY_MS: 1200            # 批间隔
+
+  USE_SHARP: true
+  SHARP_QUALITY: 72
+  SHARP_WIDTH: 1080
+  SHARP_MAX_BYTES: 1638400  # 超过就再压一档
+
+  FETCH_TIMEOUT: 15000
+  DOWNLOAD_TIMEOUT: 30000
+  DOWNLOAD_RETRY: 2         # 仅对 429/408/5xx/超时重试
+  DOWNLOAD_GAP_MS: 200
+  REFILL_BUDGET: 20         # 单次最多尝试下载张数
+  PICK_ORDER: random        # random / order / reverse
+
+  # 目录索引：49 个月份目录抓一轮约 30s，缓存 24h
+  INDEX_TTL_HOURS: 24
+  INDEX_MAX_MONTHS: 0       # 0 = 全部；>0 只索引最近的 N 个月
+  INDEX_CONCURRENCY: 3
+  INDEX_GAP_MS: 150
+  SET_MEDIA_TTL_MIN: 120
+  SET_CACHE_MAX: 60
+
+  # 视频：优先发站点自带文件，翻不到就把一套图合成竖屏幻灯片
+  VIDEO_ENABLE: true
+  VIDEO_SYNTH: true
+  VIDEO_SYNTH_IMAGES: 10
+  VIDEO_SEC_PER_IMG: 2
+  VIDEO_WIDTH: 1080
+  VIDEO_HEIGHT: 1920
+  FFMPEG_PATH: 'ffmpeg'
+  FFMPEG_QUIET: true
+  VIDEO_TIMEOUT_MS: 180000
+  MAX_VIDEO_BYTES: 62914560
+  VIDEO_PREFER_BYTES: 26214400
+  # 站点静态视频种子（2026-10 全站扫描结果，50 条）。路径固定，直接发省一次翻目录。
+  VIDEO_SEEDS:
+    - '/2019.01/1901_100/15C708F2-5E86-4D93-AF54-E45F8C1485E7_%281.0%29_S_result.mp4'
+    - '/2019.01/1901_100/2B6A98CC-9A3E-42E4-9EA4-FF7CF89F975F_%281.0%29_S_result.mp4'
+    - '/2019.01/1901_40/5B7F84E1-9B27-4517-B699-6DC2FF0885B7_%281.0%29_S_result.mp4'
+    - '/2019.01/1901_40/A44B3BE4-05B0-4603-9B15-68F3794C9D4F_%281.0%29_S_result.mp4'
+    - '/2019.02/1902_40/IMG_2294.mov'
+    - '/2019.04/1904_10/joined_video_ab7f5ff21da2498488d172edc085a8b1.mp4'
+    - '/2019.04/1904_100/IMG_3460.TRIM.MOV'
+    - '/2019.04/1904_100/temp.mp4'
+    - '/2019.04/1904_40/IMG_3457.TRIM.MOV'
+    - '/2019.04/1904_80/temp.mp4'
+    - '/2019.11/sp1.mp4'
+    - '/2019.11/sp2.mp4'
+    - '/2019.12/sp.mp4'
+    - '/2020.05/beauty_1589038943331.mp4'
+    - '/2020.05/beauty_1589269513352.mp4'
+    - '/2020.06/Special%20selfie/beauty_1587109311054.mov'
+    - '/2020.06/Special%20selfie/beauty_1589277155242.mp4'
+    - '/2020.06/Special%20selfie/beauty_1591842686656.mp4'
+    - '/2020.09/Special%20selfie/beauty_1594682768021.mp4'
+    - '/2020.10/Special%20selfie/beauty_1591781860767.mp4'
+    - '/2020.10/Special%20selfie/beauty_1591781915837.mp4'
+    - '/2020.10/Special%20selfie/beauty_1591781942153.mp4'
+    - '/2020.10/Special%20selfie/beauty_1591798724524.mp4'
+    - '/2020.10/Special%20selfie/beauty_1598254775124.mp4'
+    - '/2021.05/Milk/Milk.mp4'
+    - '/2021.06/Special%20selfie/beauty_1614493212722.mp4'
+    - '/2021.06/Special%20selfie/beauty_1617869440493.mp4'
+    - '/2021.07/Special%20selfie/beauty_1618048098343.mp4'
+    - '/2021.07/Special%20selfie/beauty_1618048172986.mp4'
+    - '/2021.08/Special%20selfie/beauty_1615266240310.mp4'
+    - '/2021.08/Special%20selfie/beauty_1624170350588.mp4'
+    - '/2021.09%28watermarked%29/Special%20selfie/beauty_1618909082165.mp4'
+    - '/2021.09%28watermarked%29/Special%20selfie/beauty_1622109151414.mp4'
+    - '/2021.09%28watermarked%29/Special%20selfie/beauty_1622113486736.mp4'
+    - '/2021.10%28watermarked%29/Fox%20miko_/MIKO1080_%28new%29.mp4'
+    - '/2021.10%28watermarked%29/Special%20selfie/beauty_1624177142611_%28new%29.mp4'
+    - '/2021.10%28watermarked%29/Special%20selfie/beauty_1624177169564_%28new%29.mp4'
+    - '/2021.10%28watermarked%29/Special%20selfie/beauty_1625751613975_%28new%29.mp4'
+    - '/2022.02/Ankha/beauty_1634208376437.mp4'
+    - '/2022.06/22.06.1200%20SP%20Photo%20set%20_%20Thank%20you%F0%9F%92%95/beauty_1641363700728.mp4'
+    - '/2022.06/22.06.1200%20SP%20Photo%20set%20_%20Thank%20you%F0%9F%92%95/beauty_1644735636480.mp4'
+    - '/2022.06/Calliope%20Mori%20-%20Off%20with%20their%20heads/Calliope%20Mori%20-%20Off%20with%20their%20heads%20%281%29.mp4'
+    - '/2022.06/Calliope%20Mori%20-%20Off%20with%20their%20heads/Calliope%20Mori%20-%20Off%20with%20their%20heads%20%282%29.mp4'
+    - '/2022.06/Komachi_Mei/Komachi_Mei%20%281%29.mp4'
+    - '/2022.07/Tohsaka%20Rin/RIN.mp4'
+    - '/2022.08/22.08.1200/beauty_1644735518893.mp4'
+    - '/2022.08/22.08.1200/beauty_1644997990911.mp4'
+    - '/2022.08/22.08.1200/beauty_1645007731149.mp4'
+    - '/2022.08/Mizuki/beauty_1644982299505.mp4'
+    - '/2022.08/Rumi/beauty_1654406905636.mp4'

@@ -22,6 +22,7 @@
 - ✅ **可选 sharp 压缩/裁剪**：降低大图体积与发送失败概率
 - ✅ **不稳定源站增强**：Base64 强制发送、限并发拉取、keep-alive 等
 - ✅ **WOC 多图源容错**：随机选源、挂了自动换源并冷却、死链自动换图换组
+- ✅ **R18 档默认只在私聊**：`#r18xjj` 系列群聊静默，缺 ffmpeg 时合成档自动降级、不刷错误日志
 
 ## 插件列表
 
@@ -32,6 +33,7 @@
 | 米游社 COS（reborn） | `#cos` / `mys cos`（可加 `ob/icqq/auto/plain`） | ✅（默认 12:08:30） | `node-fetch` `node-schedule` `sharp` | 随机抓取米游社贴子图片，分批合并转发 |
 | WOC 抓图（reborn） | `#woc` / `#卧槽` | ❌ | `sharp` | 多站 WP 接口抓图 → 强制 Base64 → 分批合并转发（优先 icqq）；随机选源、死链自动换图、可选 R18 分档 |
 | XJJ 极速增强版 | `#xjj` / `#黑丝`；视频：`#xjjpro` / `#jk视频` 等 | ❌ | `node-fetch` `sharp` | 多接口聚合，支持中英文别名分类（JK/黑丝/美腿/变装/网红系列等）；图源失败自动换源并冷却、视频死链自动换条、同群防并发刷屏 |
+| XJJ R18 扩展 | `#r18xjj`；视频：`#r18xjjpro` | ❌ | `node-fetch` `sharp` `ffmpeg`（可选） | 静态目录站（h5ai）抓图，按月份/套图名检索；站点视频直链优先，无 ffmpeg 时跳过合成；默认仅私聊 |
 
 ---
 
@@ -147,6 +149,61 @@ woc:
 
 ---
 
+### XJJ R18 扩展（Fantasy Factory）的配置要点
+
+`Huitian-xjj-r18.js` 单独挂 `#r18xjj` / `#r18xjjpro` 前缀，不改动原 `#xjj` 的任何逻辑：`#黑丝`、`#jk`、`#xjjpro` 仍然归原插件，两条命令互不抢占。
+
+图源是公开的静态目录站（h5ai 索引），没有 JSON 接口，插件直接解析目录页表格拿文件列表，不需要任何 API Key 或 Cookie。
+
+**命令**
+
+| 命令 | 作用 |
+|---|---|
+| `#r18xjj` / `#r18xjj图片` | 随机一套图（3~6 张，合并转发） |
+| `#r18xjj 关键词` | 按套图名或月份筛选，如 `#r18xjj 2022.06` |
+| `#r18xjjpro` | 视频 |
+| `#r18xjjpro 关键词` | 在指定范围内找视频 |
+| `#r18xjj列表` | 列出已索引的月份目录 |
+
+**默认只开私聊**
+
+```yaml
+xjj_r18:
+  CMD_PREFIX: 'r18xjj'      # 主命令前缀
+  ENABLE: true
+  PRIVATE_ONLY: true        # 群聊不提供服务
+  GROUP_SILENT: true        # 群里完全不接话；改成 false 则回一句提示
+```
+
+**目录索引**
+
+```yaml
+  INDEX_TTL_HOURS: 24       # 索引有效期（小时），过期自动重建
+  INDEX_MAX_MONTHS: 0       # 0=索引全部月份；只想要最近的填 N
+  INDEX_CONCURRENCY: 3      # 抓目录的并发，别调太高
+  INDEX_GAP_MS: 150         # 每个请求之间的间隔
+  SET_MEDIA_TTL_MIN: 120    # 单个套图文件列表的内存缓存时间
+```
+
+> 首次使用会花十几秒抓一遍目录（几十个请求），之后走 `data/xjj-r18-index.json` 缓存，单次出图稳定在数秒内。索引文件是运行期缓存，已在 `.gitignore` 中排除。
+
+**视频**
+
+```yaml
+  VIDEO_ENABLE: true
+  VIDEO_SYNTH: true         # 站点里翻不到视频时，用一套图合成竖屏幻灯片
+  VIDEO_SYNTH_IMAGES: 10    # 合成用几张图
+  VIDEO_SEC_PER_IMG: 2      # 每张停留秒数
+  MAX_VIDEO_BYTES: 62914560 # 超过这个体积的视频直接跳过
+  VIDEO_PREFER_BYTES: 26214400  # 优先挑这个体积以下的，发得快
+  FFMPEG_PATH: 'ffmpeg'
+  FFMPEG_QUIET: true        # 没装 ffmpeg 时只记一条 MARK，不刷 WARN / ERROR
+```
+
+> **没装 ffmpeg 不会报错**：探测一次后记住结果，合成档自动跳过，站点自带的视频和图片照常发送。需要合成功能时 `apt install ffmpeg` 再重启 Bot 即可。
+
+> ⚠️ 该图源为成人向内容，默认只在私聊开放。是否启用、在什么场合启用，由使用者自行判断并承担责任。
+
 ## 指令示例
 
 * **早报**：`#今日早报`
@@ -156,6 +213,8 @@ woc:
 * **WOC**：`#woc` / `#卧槽`
 * **XJJ 图片**：`#小姐姐` / `#xjj` / `#黑丝` / `#jk` / `#美腿图片`（支持数十种中英分类匹配，混合随机接口）
 * **XJJ 视频**：`#小姐姐视频` / `#xjjpro` / `#黑丝视频` / `#鞠婧祎pro` / `#慢摇视频`（聚合多图床与网红分类直连）
+* **XJJ-R18 图片**：`#r18xjj` / `#r18xjj 2022.06` / `#r18xjj Calliope`（默认仅私聊，群聊静默不响应）
+* **XJJ-R18 视频**：`#r18xjjpro` / `#r18xjjpro 关键词`（站点直链优先，翻不到再合成；群聊静默）
 
 ## 免责声明
 
