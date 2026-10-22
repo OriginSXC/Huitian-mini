@@ -10,6 +10,7 @@
 [![stars](https://img.shields.io/github/stars/OriginSXC/Huitian-mini?style=flat)](https://github.com/OriginSXC/Huitian-mini/stargazers)
 [![issues](https://img.shields.io/github/issues/OriginSXC/Huitian-mini)](https://github.com/OriginSXC/Huitian-mini/issues)
 [![gitee](https://img.shields.io/badge/Gitee-%E9%95%9C%E5%83%8F-C71D23?logo=gitee)](https://gitee.com/OriginSXC/Huitian-mini)
+![deepseek](https://img.shields.io/badge/AI-DeepSeek-4D6BFE)
 
 **GitHub**：<https://github.com/OriginSXC/Huitian-mini> ｜ **Gitee 镜像**：<https://gitee.com/OriginSXC/Huitian-mini>
 
@@ -215,6 +216,13 @@ xjj_r18:
 * **XJJ 视频**：`#小姐姐视频` / `#xjjpro` / `#黑丝视频` / `#鞠婧祎pro` / `#慢摇视频`（聚合多图床与网红分类直连）
 * **XJJ-R18 图片**：`#r18xjj` / `#r18xjj 2022.06` / `#r18xjj Calliope`（默认仅私聊，群聊静默不响应）
 * **XJJ-R18 视频**：`#r18xjjpro` / `#r18xjjpro 关键词`（站点直链优先，翻不到再合成；群聊静默）
+
+## Contributors
+
+- **[OriginSXC](https://github.com/OriginSXC)** —— 项目维护
+- **[DeepSeek](https://github.com/deepseek-ai)** —— AI 协作：XJJ R18 扩展的实现、各源取图链路调试与文档撰写
+
+> 提交记录里的贡献者见 [GitHub Contributors](https://github.com/OriginSXC/Huitian-mini/graphs/contributors)。
 
 ## 免责声明
 
