@@ -99,6 +99,12 @@ woc:
   SOURCE_PICK: random
   # 某个源抓挂后冷却多少秒：冷却期内不是被丢掉，而是排到最后，全挂时还能兜住。0 = 不冷却
   SOURCE_FAIL_COOLDOWN: 600
+  # 选源权重：数字越大越容易被抽中，缺省 1。R18 轮次优先查 SOURCE_WEIGHTS_R18。
+  # 权重 0 = 平时不抽，只在其它源全挂时兜底。
+  SOURCE_WEIGHTS: {}
+  SOURCE_WEIGHTS_R18:
+    4khd: 5                      # R18 档体量数万篇
+    4kup: 1                      # R18 档只有 259 篇，抽中概率压到 1/6
 
   # ---- main：主站 shaonvzhi ----
   SNZ_BASE: https://shaonvzhi.top/wp-json/wp/v2

@@ -46,6 +46,8 @@ const SOURCE_ORDER        = (Array.isArray(cfg.SOURCE_ORDER) && cfg.SOURCE_ORDER
                               ? cfg.SOURCE_ORDER.map(String)
                               : ['main', 'coserlab', 'mikagogo', '4khd', '4kup']
 const SOURCE_RANDOM       = String(cfg.SOURCE_PICK ?? 'random').toLowerCase() !== 'order'
+const SOURCE_WEIGHTS      = (cfg.SOURCE_WEIGHTS && typeof cfg.SOURCE_WEIGHTS === 'object') ? cfg.SOURCE_WEIGHTS : {}
+const SOURCE_WEIGHTS_R18  = (cfg.SOURCE_WEIGHTS_R18 && typeof cfg.SOURCE_WEIGHTS_R18 === 'object') ? cfg.SOURCE_WEIGHTS_R18 : {}
 const FAIL_COOLDOWN       = numOr(cfg.SOURCE_FAIL_COOLDOWN, 600)  // 某个源抓挂后冷却秒数，期间排到最后再试
 
 // ---- 主站：shaonvzhi ----
@@ -600,7 +602,39 @@ async function clearFail (src) {
   } catch {}
 }
 
-// 本次尝试顺序：随机打乱，冷却中的排最后
+// 某个源在本轮的权重：R18 轮次优先查 SOURCE_WEIGHTS_R18，再退回通用表，最后默认 1
+function sourceWeight (src, r18) {
+  if (r18) {
+    const w = Number(SOURCE_WEIGHTS_R18?.[src.key])
+    if (Number.isFinite(w) && w >= 0) return w
+  }
+  const base = Number(SOURCE_WEIGHTS?.[src.key])
+  return (Number.isFinite(base) && base >= 0) ? base : 1
+}
+
+// 按权重不放回抽样，权重越大越容易排在前面；权重 0 的排到最后（仍可兜底）
+function weightedShuffle (list, weightOf) {
+  const pool = list.slice()
+  const out = []
+  while (pool.length) {
+    const ws = pool.map(weightOf)
+    const total = ws.reduce((a, b) => a + b, 0)
+    if (!(total > 0)) {           // 剩下的全是 0 权重，随机排在队尾
+      out.push(...shuffleArr(pool))
+      break
+    }
+    let r = Math.random() * total
+    let i = 0
+    for (; i < pool.length - 1; i++) {
+      r -= ws[i]
+      if (r <= 0) break
+    }
+    out.push(pool.splice(i, 1)[0])
+  }
+  return out
+}
+
+// 本次尝试顺序：按权重随机，冷却中的排最后
 async function pickOrder (r18) {
   const all = candidateSources(r18)
   if (!SOURCE_RANDOM) return all
@@ -611,7 +645,8 @@ async function pickOrder (r18) {
     if (await isCooling(s)) cold.push(s)
     else hot.push(s)
   }
-  return shuffleArr(hot).concat(shuffleArr(cold))
+  const w = src => sourceWeight(src, r18)
+  return weightedShuffle(hot, w).concat(weightedShuffle(cold, w))
 }
 
 async function fetchFromSource (src, r18) {
