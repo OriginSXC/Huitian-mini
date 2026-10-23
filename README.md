@@ -195,6 +195,9 @@ xjj_r18:
   VIDEO_SYNTH: true         # 站点里翻不到视频时，用一套图合成竖屏幻灯片
   VIDEO_SYNTH_IMAGES: 10    # 合成用几张图
   VIDEO_SEC_PER_IMG: 2      # 每张停留秒数
+  VIDEO_NATIVE_RATE: 0.5    # 原生视频占比，见下方说明
+  VIDEO_FPS: 25
+  VIDEO_PRESET: 'veryfast'  # veryfast / superfast / ultrafast，越快画质越糊
   MAX_VIDEO_BYTES: 62914560 # 超过这个体积的视频直接跳过
   VIDEO_PREFER_BYTES: 26214400  # 优先挑这个体积以下的，发得快
   FFMPEG_PATH: 'ffmpeg'
@@ -202,6 +205,9 @@ xjj_r18:
 ```
 
 > **没装 ffmpeg 不会报错**：探测一次后记住结果，合成档自动跳过，站点自带的视频和图片照常发送。需要合成功能时 `apt install ffmpeg` 再重启 Bot 即可。
+
+> **原生和合成各占多少**：`#r18xjjpro` 每次掷一次骰子，`VIDEO_NATIVE_RATE` 就是「发站点自带视频」的概率 —— `0.5` 一半原生一半合成，`1` 只发原生，`0` 只合成。掷中的那一路没东西（站点没这类视频 / 没装 ffmpeg）会自动换另一路兜底，不会空手。<br>
+> 合成约 15~25 秒（取决于图片下载速度和 `VIDEO_SYNTH_IMAGES`），原生基本是秒回。
 
 > ⚠️ 该图源为成人向内容，默认只在私聊开放。是否启用、在什么场合启用，由使用者自行判断并承担责任。
 

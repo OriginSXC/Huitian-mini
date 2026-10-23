@@ -60,11 +60,15 @@ const VIDEO_SYNTH_IMAGES = numOr(cfg.VIDEO_SYNTH_IMAGES, 10)
 const VIDEO_SEC_PER_IMG  = numOr(cfg.VIDEO_SEC_PER_IMG, 2)
 const VIDEO_WIDTH        = numOr(cfg.VIDEO_WIDTH, 1080)
 const VIDEO_HEIGHT       = numOr(cfg.VIDEO_HEIGHT, 1920)
+const VIDEO_FPS          = numOr(cfg.VIDEO_FPS, 25)
+const VIDEO_PRESET       = String(cfg.VIDEO_PRESET || 'veryfast')   // veryfast / superfast / ultrafast，越快画质越糊
 const FFMPEG_PATH        = String(cfg.FFMPEG_PATH || 'ffmpeg')
 const FFMPEG_QUIET       = cfg.FFMPEG_QUIET ?? true   // 没有 ffmpeg 时只记一条 mark，不刷 warn
 const VIDEO_TIMEOUT_MS   = numOr(cfg.VIDEO_TIMEOUT_MS, 180000)
 const MAX_VIDEO_BYTES    = numOr(cfg.MAX_VIDEO_BYTES, 60 * 1024 * 1024)
 const VIDEO_PREFER_BYTES = numOr(cfg.VIDEO_PREFER_BYTES, 25 * 1024 * 1024)  // 优先挑这个体积以下的，发得快
+// pro 时原生视频（站点自带文件）的占比：0.5=一半原生一半合成；1=只发原生；0=只合成
+const VIDEO_NATIVE_RATE  = Math.min(1, Math.max(0, numOr(cfg.VIDEO_NATIVE_RATE, 0.5)))
 // 站点自带的视频是静态文件、路径固定，直接内置一份种子清单，省掉"随机翻 200 个目录找视频"。
 // 想加就按 /2020.10/Special%20selfie/xxx.mp4 的格式往里塞。
 const VIDEO_SEEDS        = listOr(cfg.VIDEO_SEEDS, [])
@@ -533,8 +537,8 @@ async function synthesizeVideo (hrefs, label) {
 
     const r = await ffmpeg([
       '-y', '-f', 'concat', '-safe', '0', '-i', listFile,
-      '-vf', 'fps=25,format=yuv420p',
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
+      '-vf', `fps=${VIDEO_FPS},format=yuv420p`,
+      '-c:v', 'libx264', '-preset', VIDEO_PRESET, '-crf', '26',
       '-movflags', '+faststart', '-an', outFile
     ], VIDEO_TIMEOUT_MS)
     if (!r.ok || !fs.existsSync(outFile)) {
@@ -760,7 +764,7 @@ export class xjjR18 extends plugin {
     return true
   }
 
-  // #r18视频
+  // #r18xjjpro
   async r18Video (e) {
     if (!await this.gate(e)) return true
     const keyword = stripCmd(e.msg)
@@ -770,59 +774,33 @@ export class xjjR18 extends plugin {
         return e.reply(`索引拉取失败：${errText(err)}`)
       }
 
-      await e.reply(keyword ? `本小姐去找「${keyword}」的视频了...` : '本小姐正在准备视频...')
-
-      const seg = await getSegment()
-
-      // pro 带了关键词就只在这个范围里挑，站点自带的种子视频不参与（它们和关键词无关）
+      // pro 带关键词就只在这个范围里挑；站点自带的种子视频与关键词无关，不参与
       const scoped = keyword ? pickSets(data, keyword).filter(s => !s.isVideo) : null
       if (keyword && !scoped.length) {
         return e.reply(`没找到包含「${keyword}」的套图，换个词试试~`)
       }
 
-      if (!keyword) {
-        // 1) 内置种子清单（站点静态视频，路径固定，命中率最高）
-        const seedHref = await pickSendableVideo(shuffle(VIDEO_SEEDS))
-        if (seedHref) {
-          try {
-            await e.reply([seg.video(absolute(seedHref))])
-            return true
-          } catch (err) {
-            Bot?.logger?.warn?.(`[xjj-r18] 种子视频发送失败 ${seedHref}：${errText(err)}`)
-          }
-        }
-
-        // 2) 索引里扫到的视频（平铺在月份目录里的那些）
-        const directVideos = data.sets.filter(s => s.isVideo).map(s => s.href)
-        const directHref = await pickSendableVideo(shuffle(directVideos))
-        if (directHref) {
-          try {
-            await e.reply([seg.video(absolute(directHref))])
-            return true
-          } catch (err) {
-            Bot?.logger?.warn?.(`[xjj-r18] 直链视频发送失败：${errText(err)}`)
-          }
-        }
-      }
-
-      // 3) 随机翻套图找视频，翻不到就抽图合成幻灯片
-      const hasDirect = !keyword && (data.sets.some(s => s.isVideo) || VIDEO_SEEDS.length > 0)
-      // ffmpeg 不可用时合成这一档根本没戏，先探一次，省掉后面 6 次白抓目录
       const synthReady = await ffmpegAvailable()
-      const pool = scoped || data.sets.filter(s => !s.isVideo)
-      const candidates = shuffle(pool).slice(0, synthReady ? 6 : 4)
-      for (const set of candidates) {
+      // 原生 / 合成按 VIDEO_NATIVE_RATE 掷一次；掷中的那一路没东西就换另一路兜底
+      const preferNative = Math.random() < VIDEO_NATIVE_RATE
+      const order = preferNative ? ['native', 'synth'] : ['synth', 'native']
+
+      await e.reply(preferNative
+        ? (keyword ? `本小姐去找「${keyword}」的原片了...` : '本小姐正在挑原生视频...')
+        : '本小姐正在抽图合成视频...')
+      Bot?.logger?.mark?.(`[xjj-r18] 视频路径：${preferNative ? '原生' : '合成'}优先（原生概率 ${VIDEO_NATIVE_RATE}）`)
+
+      const seg = await getSegment()
+      for (const mode of order) {
         try {
-          const media = await getSetMedia(set.href)
-          if (media.videos.length) {
-            const href = await pickSendableVideo(media.videos)
-            if (href) {
-              await e.reply([seg.video(absolute(href))])
-              return true
-            }
+          if (mode === 'native') {
+            const href = await this.findNativeVideo(data, scoped)
+            if (!href) continue
+            await e.reply([seg.video(absolute(href))])
+            return true
           }
-          if (!synthReady || !media.images.length) continue
-          const file = await synthesizeVideo(media.images, `${set.month}/${set.name}`)
+          if (!synthReady) continue
+          const file = await this.synthFromSets(scoped || data.sets.filter(s => !s.isVideo))
           if (!file) continue
           try {
             await e.reply([seg.video('file://' + file)])
@@ -831,10 +809,48 @@ export class xjjR18 extends plugin {
             setTimeout(() => { try { fs.rmSync(path.dirname(file), { recursive: true, force: true }) } catch {} }, 60e3)
           }
         } catch (err) {
-          Bot?.logger?.warn?.(`[xjj-r18] 视频流程失败：${errText(err)}`)
+          Bot?.logger?.warn?.(`[xjj-r18] 视频(${mode})失败：${errText(err)}`)
         }
       }
-      return e.reply(hasDirect ? '视频没发出去，稍后再试~' : '这次没凑出视频，再试一次吧~')
+      return e.reply('这次没凑出视频，再试一次吧~')
     })
+  }
+
+  // 原生视频：种子清单 → 索引扫到的直链 → 套图目录里的视频文件
+  async findNativeVideo (data, scoped) {
+    if (!scoped) {
+      const seedHref = await pickSendableVideo(shuffle(VIDEO_SEEDS))
+      if (seedHref) return seedHref
+      const direct = data.sets.filter(s => s.isVideo).map(s => s.href)
+      const directHref = await pickSendableVideo(shuffle(direct))
+      if (directHref) return directHref
+    }
+    const pool = scoped || data.sets.filter(s => !s.isVideo)
+    for (const set of shuffle(pool).slice(0, 6)) {
+      try {
+        const media = await getSetMedia(set.href)
+        if (!media.videos.length) continue
+        const href = await pickSendableVideo(media.videos)
+        if (href) return href
+      } catch (err) {
+        Bot?.logger?.warn?.(`[xjj-r18] 套图 ${set.name} 视频探测失败：${errText(err)}`)
+      }
+    }
+    return null
+  }
+
+  // 合成视频：挑一套有图的，压成竖屏幻灯片
+  async synthFromSets (pool) {
+    for (const set of shuffle(pool).slice(0, 6)) {
+      try {
+        const media = await getSetMedia(set.href)
+        if (media.images.length < 2) continue
+        const file = await synthesizeVideo(media.images, `${set.month}/${set.name}`)
+        if (file) return file
+      } catch (err) {
+        Bot?.logger?.warn?.(`[xjj-r18] 合成 ${set.name} 失败：${errText(err)}`)
+      }
+    }
+    return null
   }
 }

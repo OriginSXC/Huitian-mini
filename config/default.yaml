@@ -205,11 +205,15 @@ xjj_r18:
   VIDEO_SEC_PER_IMG: 2
   VIDEO_WIDTH: 1080
   VIDEO_HEIGHT: 1920
+  VIDEO_FPS: 25
+  VIDEO_PRESET: 'veryfast'   # veryfast / superfast / ultrafast，越快画质越糊
   FFMPEG_PATH: 'ffmpeg'
   FFMPEG_QUIET: true
   VIDEO_TIMEOUT_MS: 180000
   MAX_VIDEO_BYTES: 62914560
   VIDEO_PREFER_BYTES: 26214400
+  VIDEO_NATIVE_RATE: 0.5      # pro 时原生视频占比：0.5=一半一半；1=只发原生；0=只合成
+
   # 站点静态视频种子（2026-10 全站扫描结果，50 条）。路径固定，直接发省一次翻目录。
   VIDEO_SEEDS:
     - '/2019.01/1901_100/15C708F2-5E86-4D93-AF54-E45F8C1485E7_%281.0%29_S_result.mp4'
