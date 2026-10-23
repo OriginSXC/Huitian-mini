@@ -788,7 +788,7 @@ export class xjjR18 extends plugin {
       await e.reply(preferNative
         ? (keyword ? `本小姐去找「${keyword}」的原片了...` : '本小姐正在挑原生视频...')
         : '本小姐正在抽图合成视频...')
-      Bot?.logger?.mark?.(`[xjj-r18] 视频路径：${preferNative ? '原生' : '合成'}优先（原生概率 ${VIDEO_NATIVE_RATE}）`)
+      Bot?.logger?.mark?.(`[xjj-r18] 视频路径：${preferNative ? '先走原生' : '先走合成'}（原生概率 ${VIDEO_NATIVE_RATE}，另一路兜底）`)
 
       const seg = await getSegment()
       for (const mode of order) {

@@ -198,7 +198,7 @@ xjj_r18:
   SET_MEDIA_TTL_MIN: 120
   SET_CACHE_MAX: 60
 
-  # 视频：优先发站点自带文件，翻不到就把一套图合成竖屏幻灯片
+  # 视频：站点自带文件与合成幻灯片按 VIDEO_NATIVE_RATE 分配，互相兜底
   VIDEO_ENABLE: true
   VIDEO_SYNTH: true
   VIDEO_SYNTH_IMAGES: 10

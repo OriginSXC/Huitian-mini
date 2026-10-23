@@ -34,7 +34,7 @@
 | 米游社 COS（reborn） | `#cos` / `mys cos`（可加 `ob/icqq/auto/plain`） | ✅（默认 12:08:30） | `node-fetch` `node-schedule` `sharp` | 随机抓取米游社贴子图片，分批合并转发 |
 | WOC 抓图（reborn） | `#woc` / `#卧槽` | ❌ | `sharp` | 多站 WP 接口抓图 → 强制 Base64 → 分批合并转发（优先 icqq）；随机选源、死链自动换图、可选 R18 分档 |
 | XJJ 极速增强版 | `#xjj` / `#黑丝`；视频：`#xjjpro` / `#jk视频` 等 | ❌ | `node-fetch` `sharp` | 多接口聚合，支持中英文别名分类（JK/黑丝/美腿/变装/网红系列等）；图源失败自动换源并冷却、视频死链自动换条、同群防并发刷屏 |
-| XJJ R18 扩展 | `#r18xjj`；视频：`#r18xjjpro` | ❌ | `node-fetch` `sharp` `ffmpeg`（可选） | 静态目录站（h5ai）抓图，按月份/套图名检索；站点视频直链优先，无 ffmpeg 时跳过合成；默认仅私聊 |
+| XJJ R18 扩展 | `#r18xjj`；视频：`#r18xjjpro` | ❌ | `node-fetch` `sharp` `ffmpeg`（可选） | 静态目录站（h5ai）抓图，按月份/套图名检索；站点视频与合成幻灯片按 `VIDEO_NATIVE_RATE` 分配（默认一半一半），缺 ffmpeg 自动走原生；默认仅私聊 |
 
 ---
 
@@ -192,7 +192,7 @@ xjj_r18:
 
 ```yaml
   VIDEO_ENABLE: true
-  VIDEO_SYNTH: true         # 站点里翻不到视频时，用一套图合成竖屏幻灯片
+  VIDEO_SYNTH: true         # 合成档开关；与原生视频按 VIDEO_NATIVE_RATE 分配概率
   VIDEO_SYNTH_IMAGES: 10    # 合成用几张图
   VIDEO_SEC_PER_IMG: 2      # 每张停留秒数
   VIDEO_NATIVE_RATE: 0.5    # 原生视频占比，见下方说明
@@ -221,7 +221,7 @@ xjj_r18:
 * **XJJ 图片**：`#小姐姐` / `#xjj` / `#黑丝` / `#jk` / `#美腿图片`（支持数十种中英分类匹配，混合随机接口）
 * **XJJ 视频**：`#小姐姐视频` / `#xjjpro` / `#黑丝视频` / `#鞠婧祎pro` / `#慢摇视频`（聚合多图床与网红分类直连）
 * **XJJ-R18 图片**：`#r18xjj` / `#r18xjj 2022.06` / `#r18xjj Calliope`（默认仅私聊，群聊静默不响应）
-* **XJJ-R18 视频**：`#r18xjjpro` / `#r18xjjpro 关键词`（站点直链优先，翻不到再合成；群聊静默）
+* **XJJ-R18 视频**：`#r18xjjpro` / `#r18xjjpro 关键词`（原生与合成按 VIDEO_NATIVE_RATE 出片，默认一半一半；群聊静默）
 
 ## Contributors
 
