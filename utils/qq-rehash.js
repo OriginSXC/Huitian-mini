@@ -56,10 +56,17 @@ function rehashJpeg (buf) {
   seg.writeUInt16BE(payload.length + 2, 2)  // 段长度（含长度字段本身）
   payload.copy(seg, 4)
 
-  // 从尾部找最后一个 FFD9，那才是真正的 EOI
+  // 从尾部找最后一个 FFD9，那才是真正的 EOI。
+  // 先扫最后 4KB（基本都在这儿），没找到再整段回扫兜底。
   let end = -1
-  for (let i = buf.length - 2; i >= Math.max(0, buf.length - 1 << 20); i--) {
+  const tailFrom = Math.max(0, buf.length - 4096)
+  for (let i = buf.length - 2; i >= tailFrom; i--) {
     if (buf[i] === 0xff && buf[i + 1] === 0xd9) { end = i; break }
+  }
+  if (end < 0) {
+    for (let i = buf.length - 3; i >= 2; i--) {
+      if (buf[i] === 0xff && buf[i + 1] === 0xd9) { end = i; break }
+    }
   }
   if (end < 4) return null
   return Buffer.concat([buf.subarray(0, end), seg, buf.subarray(end)])
@@ -207,7 +214,6 @@ function looksLikeQQBlock (errOrRes) {
   // 拿不到明确信息时按「可能是风控」处理：改哈希重试的成本只有几十 KB 的流量
   return true
 }
-
 
 /**
  * 递归换掉节点里所有 base64:// 图片。
