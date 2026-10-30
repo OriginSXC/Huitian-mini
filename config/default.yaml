@@ -12,6 +12,8 @@ moyu:
 
 # 米游社Cos配置
 mys_cos:
+  # 发送被 QQ 按图片 MD5 拦下时，改哈希（插注释段，像素不变）重投一次
+  SEND_REHASH: true
   SEND_MODE_DEFAULT: 'forward-icqq'
   ALLOW_CMD_SWITCH_MODE: true
   BATCH_SIZE: 10
@@ -42,6 +44,8 @@ mys_cos:
 
 # 卧槽图片配置
 woc:
+  # 发送被 QQ 按图片 MD5 拦下时，改哈希（插注释段，像素不变）重投一次
+  SEND_REHASH: true
   BATCH_SIZE: 5
   DELAY_MS: 1600
   MAX_TOTAL: 10
@@ -154,6 +158,8 @@ woc:
 
 # 小姐姐图片配置
 xjj:
+  # 发送被 QQ 按图片 MD5 拦下时，改哈希（插注释段，像素不变）重投一次
+  SEND_REHASH: true
   BATCH_SIZE: 3
   IMG_COUNT_MIN: 3
   IMG_COUNT_MAX: 5
@@ -167,6 +173,8 @@ xjj:
 
 
 xjj_r18:
+  # 发送被 QQ 按图片 MD5 拦下时，改哈希（插注释段，像素不变）重投一次
+  SEND_REHASH: true
   CMD_PREFIX: 'r18xjj'   # 主命令前缀：#r18xjj（图片）、#r18xjjpro（视频）
   ENABLE: true
   PRIVATE_ONLY: true        # true：只在私聊开放；false：群聊也放

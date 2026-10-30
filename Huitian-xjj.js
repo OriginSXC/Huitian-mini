@@ -5,9 +5,11 @@ import https from 'https'
 import crypto from 'crypto'
 import Config from './config/config.js'
 import { senderOf } from './utils/botcompat.js'
+import { rehashNodes, looksLikeQQBlock } from './utils/qq-rehash.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('xjj')
+const SEND_REHASH = cfg.SEND_REHASH ?? true   // 发送被 QQ 拦下时改图片哈希重投
 
 const BATCH_SIZE           = cfg.BATCH_SIZE || 3              // 每条合并转发几张，同时也是下载并发数
 const IMG_COUNT_MIN        = cfg.IMG_COUNT_MIN || 3
@@ -390,6 +392,24 @@ export class xjjUltimate extends plugin {
             for (const node of nodes) await e.reply(node.message)
           }
         } catch (err) {
+          // QQ 侧按图片 MD5 做风控缓存，同一份字节反复投会被吞。
+          // 改哈希（插注释段，像素不变）后重投一次，再不行才逐条降级。
+          if (SEND_REHASH && looksLikeQQBlock(err)) {
+            try {
+              const again = rehashNodes(nodes)
+              const ctx2 = e.group || e.friend
+              if (typeof ctx2?.makeForwardMsg === 'function') {
+                await e.reply(await ctx2.makeForwardMsg(again))
+              } else {
+                for (const node of again) await e.reply(node.message)
+              }
+              Bot?.logger?.mark?.(`[xjj] 首投被拦（${errText(err)}），改哈希重投成功`)
+              if (i + BATCH_SIZE < images.length) await sleep(1000)
+              continue
+            } catch (err2) {
+              Bot?.logger?.warn?.(`[xjj] 改哈希重投仍失败：${errText(err2)}`)
+            }
+          }
           Bot?.logger?.warn?.(`[xjj] 合并转发失败，改逐条发送：${errText(err)}`)
           for (const node of nodes) { try { await e.reply(node.message) } catch {} }
         }

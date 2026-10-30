@@ -2,9 +2,11 @@ import plugin from '../../lib/plugins/plugin.js'
 import sharp from 'sharp' 
 import Config from './config/config.js'
 import { senderOf } from './utils/botcompat.js'
+import { rehashNodes, looksLikeQQBlock } from './utils/qq-rehash.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('woc')
+const SEND_REHASH          = cfg.SEND_REHASH ?? true            // 发送被 QQ 拦下时改图片哈希重投
 
 const BATCH_SIZE          = cfg.BATCH_SIZE || 5          
 const DELAY_MS            = cfg.DELAY_MS || 1600       
@@ -873,7 +875,7 @@ function assertSent (res, how) {
   return res
 }
 
-async function sendForward (e, ctx, nodesOB, nodesIcqq) {
+async function sendForwardOnce (e, ctx, nodesOB, nodesIcqq) {
   if (PREFER_ICQQ_FORWARD && typeof ctx.makeForwardMsg === 'function') {
     const msg = await ctx.makeForwardMsg(nodesIcqq)
     if (typeof ctx.sendMsg === 'function') return assertSent(await ctx.sendMsg(msg), 'makeForwardMsg')
@@ -889,6 +891,18 @@ async function sendForward (e, ctx, nodesOB, nodesIcqq) {
       await e.reply(n.data.content)
     }
     await new Promise(r => setTimeout(r, 800))
+  }
+}
+
+// QQ 按图片 MD5 拦图时，这一批的字节原样重投还是会被吞。
+// 改哈希（插注释段，像素不变）再投一次，仍不行才把错抛给上层降级。
+async function sendForward (e, ctx, nodesOB, nodesIcqq) {
+  try {
+    return await sendForwardOnce(e, ctx, nodesOB, nodesIcqq)
+  } catch (err) {
+    if (!SEND_REHASH || !looksLikeQQBlock(err)) throw err
+    Bot?.logger?.warn?.(`[woc] 首投失败（${errText(err)}），改哈希后重投`)
+    return await sendForwardOnce(e, ctx, rehashNodes(nodesOB), rehashNodes(nodesIcqq))
   }
 }
 

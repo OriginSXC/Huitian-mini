@@ -2,9 +2,11 @@ import plugin from '../../lib/plugins/plugin.js'
 import fetch from 'node-fetch'
 import Config from './config/config.js'
 import { senderOf, normalizeId } from './utils/botcompat.js'
+import { rehashNodes, looksLikeQQBlock } from './utils/qq-rehash.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('mys_cos')
+const SEND_REHASH           = cfg.SEND_REHASH ?? true   // 发送被 QQ 拦下时改图片哈希重投
 
 const SEND_MODE_DEFAULT     = cfg.SEND_MODE_DEFAULT || 'forward-icqq'
 const ALLOW_CMD_SWITCH_MODE = cfg.ALLOW_CMD_SWITCH_MODE ?? true
@@ -142,14 +144,29 @@ async function sendByMode(ctx, mode, nodesOB, nodesIcqq) {
 
   if (mode === 'forward-onebot') {
     if (!useOB) return false
-    await ctx.sendForwardMsg(nodesOB)
-    return true
+    try {
+      await ctx.sendForwardMsg(nodesOB)
+      return true
+    } catch (e) {
+      if (!SEND_REHASH || !looksLikeQQBlock(e)) throw e
+      Bot.logger?.warn?.('[mys-cos] OneBot 首投失败（' + (e?.message || e) + '），改哈希后重投')
+      await ctx.sendForwardMsg(rehashNodes(nodesOB))
+      return true
+    }
   }
   if (mode === 'forward-icqq') {
     if (!useICQQ) return false
-    const msg = await ctx.makeForwardMsg(nodesIcqq)
-    await ctx.sendMsg(msg)
-    return true
+    try {
+      const msg = await ctx.makeForwardMsg(nodesIcqq)
+      await ctx.sendMsg(msg)
+      return true
+    } catch (e) {
+      if (!SEND_REHASH || !looksLikeQQBlock(e)) throw e
+      Bot.logger?.warn?.('[mys-cos] icqq 首投失败（' + (e?.message || e) + '），改哈希后重投')
+      const msg = await ctx.makeForwardMsg(rehashNodes(nodesIcqq))
+      await ctx.sendMsg(msg)
+      return true
+    }
   }
   if (mode === 'forward-auto') {
     if (useOB) {
@@ -158,6 +175,15 @@ async function sendByMode(ctx, mode, nodesOB, nodesIcqq) {
         return true
       } catch (e) {
         Bot.logger?.warn?.('[mys-cos] OneBot 合并转发失败，尝试 icqq：' + (e?.message || e))
+        if (SEND_REHASH && looksLikeQQBlock(e)) {
+          try {
+            await ctx.sendForwardMsg(rehashNodes(nodesOB))
+            Bot.logger?.mark?.('[mys-cos] OneBot 改哈希重投成功')
+            return true
+          } catch (e2) {
+            Bot.logger?.warn?.('[mys-cos] OneBot 改哈希重投仍失败：' + (e2?.message || e2))
+          }
+        }
       }
     }
     if (useICQQ) {
@@ -167,6 +193,16 @@ async function sendByMode(ctx, mode, nodesOB, nodesIcqq) {
         return true
       } catch (e) {
         Bot.logger?.warn?.('[mys-cos] icqq 合并转发失败：' + (e?.message || e))
+        if (SEND_REHASH && looksLikeQQBlock(e)) {
+          try {
+            const msg = await ctx.makeForwardMsg(rehashNodes(nodesIcqq))
+            await ctx.sendMsg(msg)
+            Bot.logger?.mark?.('[mys-cos] icqq 改哈希重投成功')
+            return true
+          } catch (e2) {
+            Bot.logger?.warn?.('[mys-cos] icqq 改哈希重投仍失败：' + (e2?.message || e2))
+          }
+        }
       }
     }
     return false
@@ -183,6 +219,21 @@ async function sendByMode(ctx, mode, nodesOB, nodesIcqq) {
       return true
     } catch (e) {
       Bot.logger?.warn?.('[mys-cos] plain 逐条发送失败：' + (e?.message || e))
+      if (SEND_REHASH && looksLikeQQBlock(e)) {
+        try {
+          const pick = nodesOB?.length ? nodesOB : nodesIcqq
+          for (const n of rehashNodes(pick || [])) {
+            const content = n?.data?.content || n?.message
+            if (!content) continue
+            await ctx.sendMsg(arrClean(content))
+            await new Promise(r => setTimeout(r, 500))
+          }
+          Bot.logger?.mark?.('[mys-cos] plain 改哈希重投成功')
+          return true
+        } catch (e2) {
+          Bot.logger?.warn?.('[mys-cos] plain 改哈希重投仍失败：' + (e2?.message || e2))
+        }
+      }
       return false
     }
   }

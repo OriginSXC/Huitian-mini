@@ -18,9 +18,11 @@ import crypto from 'crypto'
 import { execFile } from 'child_process'
 import Config from './config/config.js'
 import { senderOf } from './utils/botcompat.js'
+import { rehashNodes, looksLikeQQBlock } from './utils/qq-rehash.js'
 
 // ====== 读取 YAML 配置 ======
 const cfg = Config.get('xjj_r18')
+const SEND_REHASH = cfg.SEND_REHASH ?? true   // 发送被 QQ 拦下时改图片哈希重投
 
 const numOr = (v, d) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : d)
 const listOr = (v, d) => (Array.isArray(v) && v.length ? v.map(String) : d)
@@ -624,6 +626,24 @@ async function sendImages (e, images, title) {
         for (const n of nodes) assertSent(await e.reply(n.message), 'plain')
       }
     } catch (err) {
+      // QQ 按图片 MD5 拦图：改哈希（插注释段，像素不变）重投一次
+      if (SEND_REHASH && looksLikeQQBlock(err)) {
+        try {
+          const again = rehashNodes(nodes)
+          if (typeof ctx?.makeForwardMsg === 'function') {
+            const msg = await ctx.makeForwardMsg(again)
+            if (typeof ctx.sendMsg === 'function') assertSent(await ctx.sendMsg(msg), 'makeForwardMsg')
+            else assertSent(await e.reply(msg), 'makeForwardMsg')
+          } else {
+            for (const n of again) assertSent(await e.reply(n.message), 'plain')
+          }
+          Bot?.logger?.mark?.(`[xjj-r18] 首投被拦（${errText(err)}），改哈希重投成功`)
+          if (i + BATCH_SIZE < images.length) await sleep(DELAY_MS)
+          continue
+        } catch (err2) {
+          Bot?.logger?.warn?.(`[xjj-r18] 改哈希重投仍失败：${errText(err2)}`)
+        }
+      }
       Bot?.logger?.warn?.(`[xjj-r18] 合并转发失败，改逐条：${errText(err)}`)
       for (const n of nodes) { try { await e.reply(n.message) } catch {} }
     }
